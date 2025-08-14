@@ -1,19 +1,20 @@
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/database.dart';
 import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/window_info.dart';
 import 'package:anx_reader/page/home_page.dart';
-import 'package:anx_reader/page/home_page/notes_page.dart';
 import 'package:anx_reader/service/book_player/book_player_server.dart';
-import 'package:anx_reader/service/tts.dart';
+import 'package:anx_reader/service/iap_service.dart';
+import 'package:anx_reader/service/tts/tts_handler.dart';
+import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/error/common.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/utils/log/common.dart';
-import 'package:anx_reader/providers/anx_webdav.dart';
+import 'package:anx_reader/providers/sync.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:chinese_font_library/chinese_font_library.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
@@ -29,7 +30,6 @@ late AudioHandler audioHandler;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Prefs().initPrefs();
-
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
     final size = Size(
@@ -55,19 +55,23 @@ Future<void> main() async {
   AnxError.init();
 
   await DBHelper().initDB();
+  if (EnvVar.isAppStore) {
+    IAPService().initialize();
+  }
   Server().start();
 
   audioHandler = await AudioService.init(
-    builder: () => Tts(),
+    builder: () => TtsHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.anxcye.anx_reader.channel.audio',
-      androidNotificationChannelName: 'TTS playback',
+      androidNotificationChannelId: 'com.anx.reader.tts.channel.audio',
+      androidNotificationChannelName: 'ANX Reader TTS',
       androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
     ),
   );
 
   SmartDialog.config.custom = SmartConfigCustom(
-    maskColor: Colors.black.withOpacity(0.35),
+    maskColor: Colors.black.withAlpha(35),
     useAnimation: true,
     animationType: SmartAnimationType.centerFade_otherSlide,
   );
@@ -132,9 +136,11 @@ class _MyAppState extends ConsumerState<MyApp>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       if (Prefs().webdavStatus) {
-        ref
-            .read(anxWebdavProvider.notifier)
-            .syncData(SyncDirection.upload, ref);
+        ref.read(syncProvider.notifier).syncData(SyncDirection.both, ref, trigger: SyncTrigger.auto);
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (Platform.isIOS) {
+        Server().start();
       }
     }
   }
@@ -146,9 +152,6 @@ class _MyAppState extends ConsumerState<MyApp>
         provider.ChangeNotifierProvider(
           create: (_) => Prefs(),
         ),
-        provider.ChangeNotifierProvider(
-          create: (_) => NotesDetailModel(),
-        )
       ],
       child: provider.Consumer<Prefs>(
         builder: (context, prefsNotifier, child) {
@@ -160,6 +163,25 @@ class _MyAppState extends ConsumerState<MyApp>
           //           ? Brightness.dark
           //           : MediaQuery.platformBrightnessOf(context),
           // ).surface;
+
+          final isEInkMode = prefsNotifier.eInkMode;
+          final colorScheme = isEInkMode
+              ? const ColorScheme.light(
+                  primary: Colors.black,
+                  onPrimary: Colors.white,
+                  secondary: Colors.grey,
+                  onSecondary: Colors.white,
+                  surface: Colors.white,
+                  onSurface: Colors.black,
+                )
+              : ColorScheme.fromSeed(
+                  seedColor: prefsNotifier.themeColor,
+                  brightness: prefsNotifier.themeMode == ThemeMode.light
+                      ? Brightness.light
+                      : prefsNotifier.themeMode == ThemeMode.dark
+                          ? Brightness.dark
+                          : MediaQuery.platformBrightnessOf(context),
+                );
 
           // Widget dragToMoveArea = DragToMoveArea(
           //   child: MaterialApp(
@@ -202,10 +224,10 @@ class _MyAppState extends ConsumerState<MyApp>
                   debugShowCheckedModeBanner: false,
                   scrollBehavior: ScrollConfiguration.of(context).copyWith(
                     physics: const BouncingScrollPhysics(),
-                    dragDevices: {
-                      PointerDeviceKind.touch,
-                      PointerDeviceKind.mouse,
-                    },
+                    // dragDevices: {
+                    //   PointerDeviceKind.touch,
+                    //   PointerDeviceKind.mouse,
+                    // },
                   ),
                   navigatorObservers: [FlutterSmartDialog.observer],
                   builder: FlutterSmartDialog.init(),
@@ -216,22 +238,24 @@ class _MyAppState extends ConsumerState<MyApp>
                   title: 'Anx',
                   themeMode: prefsNotifier.themeMode,
                   theme: FlexThemeData.light(
-                    useMaterial3: true,
-                    swapLegacyOnMaterial3: true,
-                    colorScheme: ColorScheme.fromSeed(
-                      seedColor: prefsNotifier.themeColor,
-                      // brightness: Brightness.light,
-                    ),
-                  ).useSystemChineseFont(Brightness.light),
+                          useMaterial3: true,
+                          swapLegacyOnMaterial3: true,
+                          colorScheme: colorScheme)
+                      .copyWith(
+                          sliderTheme: const SliderThemeData(year2023: false),
+                          progressIndicatorTheme:
+                              const ProgressIndicatorThemeData(year2023: false))
+                      .useSystemChineseFont(Brightness.light),
                   darkTheme: FlexThemeData.dark(
-                    useMaterial3: true,
-                    swapLegacyOnMaterial3: true,
-                    darkIsTrueBlack: prefsNotifier.trueDarkMode,
-                    colorScheme: ColorScheme.fromSeed(
-                      seedColor: prefsNotifier.themeColor,
-                      brightness: Brightness.dark,
-                    ),
-                  ).useSystemChineseFont(Brightness.dark),
+                          useMaterial3: true,
+                          swapLegacyOnMaterial3: true,
+                          darkIsTrueBlack: prefsNotifier.trueDarkMode,
+                          colorScheme: colorScheme)
+                      .copyWith(
+                          sliderTheme: const SliderThemeData(year2023: false),
+                          progressIndicatorTheme:
+                              const ProgressIndicatorThemeData(year2023: false))
+                      .useSystemChineseFont(Brightness.dark),
                   home: const HomePage(),
                 ),
               ),

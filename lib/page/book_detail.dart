@@ -1,12 +1,14 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:anx_reader/dao/book.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/reading_time.dart';
-import 'package:anx_reader/providers/anx_webdav.dart';
+import 'package:anx_reader/providers/sync.dart';
 import 'package:anx_reader/providers/book_list.dart';
 import 'package:anx_reader/service/book.dart';
 import 'package:anx_reader/utils/date/convert_seconds.dart';
@@ -44,29 +46,41 @@ class _BookDetailState extends ConsumerState<BookDetail> {
   @override
   Widget build(BuildContext context) {
     Widget buildBackground() {
-      return Container(
-        color: Theme.of(context).colorScheme.surface,
-        child: ShaderMask(
+      var bg = Scaffold(
+        body: ShaderMask(
           shaderCallback: (rect) {
             return LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Theme.of(context).colorScheme.surface.withOpacity(0.20),
-                Colors.transparent,
+                Theme.of(context).colorScheme.surface.withAlpha(200),
+                Theme.of(context).colorScheme.surface.withAlpha(10),
+                Theme.of(context).colorScheme.surface.withAlpha(10),
+                // Colors.transparent,
               ],
             ).createShader(
               Rect.fromLTRB(0, 0, rect.width, rect.height),
             );
           },
-          blendMode: BlendMode.dstIn,
+          blendMode: BlendMode.dstATop,
           child: bookCover(
             context,
             _book,
-            height: 600,
+            height: MediaQuery.of(context).size.height * 0.8,
             width: MediaQuery.of(context).size.width,
           ),
         ),
+      );
+      return Stack(
+        children: [
+          bg,
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaY: 40, sigmaX: 40),
+            child: Container(
+              color: Colors.black12,
+            ),
+          )
+        ],
       );
     }
 
@@ -119,7 +133,7 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                                 child: Text(
                                   "${(widget.book.readingPercentage * 100).toStringAsFixed(0)}%",
                                   style: const TextStyle(
-                                    fontSize: 20,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -161,11 +175,16 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                     await oldCoverImageFile.delete();
                   }
 
+                  String oldName = widget.book.coverPath
+                      .split('-')
+                      .sublist(0, widget.book.coverPath.split('-').length - 1)
+                      .join('');
+                  if (!oldName.startsWith('cover/')) {
+                    oldName = 'cover/$oldName';
+                  }
+
                   String newPath =
-                      '${widget.book.coverPath.split('/').sublist(0, widget.book.coverPath.split('/').length - 1).join('/')}/${widget.book.title.length > 20 ? widget.book.title.substring(0, 20) : widget.book.title}-${DateTime.now().millisecond.toString()}.png'
-                          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-                          .replaceAll('\n', '')
-                          .replaceAll('\r', '')
+                      '$oldName-${DateTime.now().millisecondsSinceEpoch.toString()}.png'
                           .trim();
 
                   AnxLog.info('BookDetail: New path: $newPath');
@@ -179,7 +198,7 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                   setState(() {
                     widget.book.coverPath = newPath;
                     updateBook(widget.book);
-                    AnxWebdav().syncData(SyncDirection.upload, ref);
+                    Sync().syncData(SyncDirection.upload, ref, trigger: SyncTrigger.auto);
                     ref.read(bookListProvider.notifier).refresh();
                   });
                 },
@@ -189,7 +208,7 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                     boxShadow: [
                       // Set the shadow
                       BoxShadow(
-                        color: Colors.grey.withOpacity(0.5),
+                        color: Colors.grey.withAlpha(128),
                         spreadRadius: 6,
                         blurRadius: 30,
                         offset: const Offset(0, 3),
@@ -281,29 +300,29 @@ class _BookDetailState extends ConsumerState<BookDetail> {
         children: [
           const Spacer(),
           isEditing
-              ? ElevatedButton(
+              ? OutlinedButton(
                   child: Row(
                     children: [
                       const Icon(Icons.save),
                       const SizedBox(width: 5),
-                      Text(L10n.of(context).book_detail_save),
+                      Text(L10n.of(context).bookDetailSave),
                     ],
                   ),
                   onPressed: () {
                     setState(() {
                       isEditing = false;
                       updateBook(widget.book);
-                      AnxWebdav().syncData(SyncDirection.upload, ref);
+                      Sync().syncData(SyncDirection.upload, ref, trigger: SyncTrigger.manual);
                       ref.read(bookListProvider.notifier).refresh();
                     });
                   },
                 )
-              : ElevatedButton(
+              : OutlinedButton(
                   child: Row(
                     children: [
                       const Icon(Icons.edit),
                       const SizedBox(width: 5),
-                      Text(L10n.of(context).book_detail_edit),
+                      Text(L10n.of(context).bookDetailEdit),
                     ],
                   ),
                   onPressed: () {
@@ -330,7 +349,7 @@ class _BookDetailState extends ConsumerState<BookDetail> {
           padding: const EdgeInsets.only(left: 20, right: 20),
           child: highlightDigit(
               context,
-              L10n.of(context).book_detail_nth_book(widget.book.id),
+              L10n.of(context).bookDetailNthBook(widget.book.id),
               textStyle,
               digitStyle),
         );
@@ -386,13 +405,13 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                   children: [
                     highlightDigit(
                       context,
-                      L10n.of(context).common_hours(hours),
+                      L10n.of(context).commonHours(hours),
                       textStyle,
                       digitStyle,
                     ),
                     highlightDigit(
                       context,
-                      L10n.of(context).common_minutes(minutes),
+                      L10n.of(context).commonMinutes(minutes),
                       textStyle,
                       digitStyle,
                     ),
@@ -491,11 +510,11 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${L10n.of(context).book_detail_import_date}${widget.book.createTime.toString().substring(0, 10)}',
+                      '${L10n.of(context).bookDetailImportDate}${widget.book.createTime.toString().substring(0, 10)}',
                       style: textStyle,
                     ),
                     Text(
-                      '${L10n.of(context).book_detail_last_read_date}${widget.book.updateTime.toString().substring(0, 10)}',
+                      '${L10n.of(context).bookDetailLastReadDate}${widget.book.updateTime.toString().substring(0, 10)}',
                       style: textStyle,
                     ),
                     const Divider(),
@@ -531,7 +550,7 @@ class _BookDetailState extends ConsumerState<BookDetail> {
                   pinned: true,
                   stretch: true,
                   backgroundColor: _isCollapsed
-                      ? Theme.of(context).colorScheme.surface.withOpacity(0.8)
+                      ? Theme.of(context).colorScheme.surface.withAlpha(80)
                       : Colors.transparent,
                   flexibleSpace: FlexibleSpaceBar(
                     title: AnimatedOpacity(

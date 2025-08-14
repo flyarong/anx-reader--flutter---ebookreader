@@ -1,7 +1,10 @@
 import 'dart:io';
 
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/enums/sort_field.dart';
+import 'package:anx_reader/enums/sort_order.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
+import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/providers/book_list.dart';
 import 'package:anx_reader/service/book.dart';
@@ -20,14 +23,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:icons_plus/icons_plus.dart';
 
 class BookshelfPage extends ConsumerStatefulWidget {
-  const BookshelfPage({super.key});
+  const BookshelfPage({super.key,
+  this.controller  
+  });
+  final ScrollController? controller;
 
   @override
   ConsumerState<BookshelfPage> createState() => BookshelfPageState();
 }
 
 class BookshelfPageState extends ConsumerState<BookshelfPage> {
-  final _scrollController = ScrollController();
+  late final _scrollController = widget.controller ?? ScrollController();
   final _gridViewKey = GlobalKey();
   bool _dragging = false;
   String? _searchValue;
@@ -132,12 +138,12 @@ class BookshelfPageState extends ConsumerState<BookshelfPage> {
                         return GridView(
                           key: _gridViewKey,
                           controller: _scrollController,
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount:
                                 constraints.maxWidth ~/ Prefs().bookCoverWidth,
-                            childAspectRatio: 0.55,
+                            childAspectRatio: 1 / 2.1,
                             mainAxisSpacing: 30,
                             crossAxisSpacing: 20,
                           ),
@@ -190,7 +196,7 @@ class BookshelfPageState extends ConsumerState<BookshelfPage> {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     Text(
-                      L10n.of(context).bookshelf_dragging,
+                      L10n.of(context).bookshelfDragging,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ],
@@ -247,21 +253,78 @@ class BookshelfPageState extends ConsumerState<BookshelfPage> {
           icon: const Icon(Icons.add),
           onPressed: _importBook,
         ),
+        IconButton(
+            icon: const Icon(Icons.sort),
+            onPressed: () {
+              showMenu(
+                context: context,
+                position: RelativeRect.fromLTRB(
+                  MediaQuery.of(context).size.width,
+                  MediaQuery.of(context).padding.top + kToolbarHeight,
+                  0.0,
+                  0.0,
+                ),
+                items: [
+                  for (var sortField in SortFieldEnum.values)
+                    PopupMenuItem(
+                        child: Text(
+                          sortField.getL10n(context),
+                          style: TextStyle(
+                            color: sortField == Prefs().sortField
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        onTap: () {
+                          Prefs().sortField = sortField;
+                          ref.read(bookListProvider.notifier).refresh();
+                        }),
+                  PopupMenuItem(
+                    enabled: false,
+                    child: StatefulBuilder(builder: (_, setState) {
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: SegmentedButton(
+                              onSelectionChanged: (value) {
+                                Prefs().sortOrder = value.first;
+                                ref.read(bookListProvider.notifier).refresh();
+                                setState(() {});
+                              },
+                              segments: SortOrderEnum.values
+                                  .map((e) => ButtonSegment(
+                                        value: e,
+                                        label: Text(e.getL10n(
+                                            navigatorKey.currentContext!)),
+                                      ))
+                                  .toList(),
+                              selected: {Prefs().sortOrder},
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  )
+                ],
+              );
+            }),
       ],
     );
 
     return Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            tileMode: TileMode.clamp,
-            center: Alignment.topRight,
-            radius: 1,
-            colors: [
-              Theme.of(context).colorScheme.primary.withAlpha(5),
-              Theme.of(context).scaffoldBackgroundColor,
-            ],
-          ),
-        ),
+        decoration: Prefs().eInkMode
+            ? null
+            : BoxDecoration(
+                gradient: RadialGradient(
+                  tileMode: TileMode.clamp,
+                  center: Alignment.topRight,
+                  radius: 1,
+                  colors: [
+                    Theme.of(context).colorScheme.primary.withAlpha(5),
+                    Theme.of(context).scaffoldBackgroundColor,
+                  ],
+                ),
+              ),
         child: Scaffold(
           backgroundColor: Colors.transparent,
           appBar: appBar,

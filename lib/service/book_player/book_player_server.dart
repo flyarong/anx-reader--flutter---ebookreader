@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:flutter/services.dart';
@@ -22,7 +24,15 @@ class Server {
         .addMiddleware(shelf.logRequests())
         .addHandler(_handleRequests);
 
-    _server = await io.serve(handler, 'localhost', 0);
+    int port = Prefs().lastServerPort;
+
+    try {
+      _server = await io.serve(handler, '127.0.0.1', port);
+    } catch (e) {
+      _server = await io.serve(handler, '127.0.0.1', 0);
+    }
+
+    Prefs().lastServerPort = _server!.port;
     AnxLog.info(
         'Server: Serving at http://${_server?.address.host}:${_server?.port}');
   }
@@ -51,7 +61,7 @@ class Server {
 
   Future<shelf.Response> _handleRequests(shelf.Request request) async {
     final uriPath = request.requestedUri.path;
-    // AnxLog.info('Server: Request for $uriPath');
+    AnxLog.info('Server: Request for $uriPath');
 
     if (_tempFileName != null && uriPath == "/${_tempFileName!}") {
       return shelf.Response.ok(
@@ -73,7 +83,8 @@ class Server {
       );
     } else if (uriPath.startsWith('/fonts/')) {
       Directory fontDir = getFontDir();
-      final file = File('${fontDir.path}/${path.basename(Uri.decodeComponent(uriPath))}');
+      final file = File(
+          '${fontDir.path}/${path.basename(Uri.decodeComponent(uriPath))}');
       if (!file.existsSync()) {
         return shelf.Response.notFound('Font not found');
       }
@@ -107,6 +118,8 @@ class Server {
           'Content-Type': contentType,
         },
       );
+    } else if (uriPath.startsWith('/bgimg/')) {
+      return await _handleBgimgRequest(request);
     } else {
       return shelf.Response.ok(
         'Request for "${request.url}"',
@@ -129,5 +142,24 @@ class Server {
       'Access-Control-Allow-Origin': '*',
     };
     return shelf.Response.ok(file.openRead(), headers: headers);
+  }
+
+  Future<shelf.Response> _handleBgimgRequest(shelf.Request request) async {
+    final bgimgPath = Uri.decodeComponent(request.url.path.substring(6));
+    ByteBuffer? file;
+    if (bgimgPath.startsWith('assets/')) {
+      file = (await rootBundle.load(bgimgPath.substring(7))).buffer;
+    } else if (bgimgPath.startsWith('local/')) {
+      final path =
+          getBgimgDir().path + Platform.pathSeparator + bgimgPath.substring(6);
+      file = (await File(path).readAsBytes()).buffer;
+    } else {
+      return shelf.Response.notFound('Bgimg not found');
+    }
+    final headers = {
+      'Content-Type': 'image/png',
+      'Access-Control-Allow-Origin': '*',
+    };
+    return shelf.Response.ok(file.asUint8List(), headers: headers);
   }
 }

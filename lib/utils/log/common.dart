@@ -50,11 +50,17 @@ class AnxLog {
           colorCode = '\x1B[34m';
         }
         print(
-            '$colorCode${record.level.name}: ${record.time}: ${record.message} ');
-        print('${record.error} \x1B[0m');
+            '$colorCode${record.level.name}: ${record.time}: ${record.message} \x1B[0m');
+        if (record.error != null) {
+          print('$colorCode${record.error} \x1B[0m');
+        }
+        if (record.stackTrace != null) {
+          print('$colorCode${record.stackTrace} \x1B[0m');
+        }
       }
+      String error = record.error == null ? '' : ' : ${record.error}';
       logFile!.writeAsStringSync(
-          '${'${record.level.name}^*^ ${record.time}^*^ [${record.message}]:${record.error}'.replaceAll('\n', ' ')}\n',
+          '${'${record.level.name}^*^ ${record.time}^*^ [${record.message}]$error,${record.stackTrace}'.replaceAll('\n', ' ')}\n',
           mode: FileMode.append);
     });
     if (Prefs().clearLogWhenStart) {
@@ -76,6 +82,7 @@ class AnxLog {
   }
 
   static severe(String message, [Object? error, StackTrace? stackTrace]) {
+    stackTrace ??= StackTrace.current;
     log.severe(message, error, stackTrace);
   }
 }

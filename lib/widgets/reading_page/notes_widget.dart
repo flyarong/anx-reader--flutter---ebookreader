@@ -14,11 +14,11 @@ class ReadingNotes extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      height: 0.6 * MediaQuery.of(context).size.height,
+      height: MediaQuery.of(context).size.height - 300,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          widgetTitle(L10n.of(context).navBar_notes, null),
+          widgetTitle(L10n.of(context).navBarNotes, null),
           Expanded(
             child:
                 ListView(children: [BookNotesList(book: book, reading: true)]),

@@ -11,7 +11,10 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-const CREATE_BOOK_SQL = '''
+// Current app database version
+const int currentDbVersion = 7;
+
+const createBookSQL = '''
 CREATE TABLE tb_books (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT,
@@ -27,7 +30,7 @@ CREATE TABLE tb_books (
 )
 ''';
 
-const CREATE_THEME_SQL = '''
+const createThemeSQL = '''
 CREATE TABLE tb_themes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   background_color TEXT,
@@ -36,7 +39,7 @@ CREATE TABLE tb_themes (
 )
 ''';
 
-const CREATE_STYLE_SQL = '''
+const createStyleSQL = '''
 CREATE TABLE tb_styles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   font_size REAL,
@@ -51,14 +54,14 @@ CREATE TABLE tb_styles (
 )
 ''';
 
-const PRIMARY_THEME_1 = '''
+const primaryTheme1 = '''
 INSERT INTO tb_themes (background_color, text_color, background_image_path) VALUES ('fffbfbf3', 'ff343434', '')
 ''';
-const PRIMARY_THEME_2 = '''
+const primaryTheme2 = '''
 INSERT INTO tb_themes (background_color, text_color, background_image_path) VALUES ('ff040404', 'fffeffeb', '')
 ''';
 
-const CREATE_NOTE_SQL = '''
+const createNoteSQL = '''
 CREATE TABLE tb_notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   book_id INTEGER,
@@ -72,7 +75,7 @@ CREATE TABLE tb_notes (
 )
 ''';
 
-const CREATE_READING_TIME_SQL = '''
+const createReadingTimeSQL = '''
 CREATE TABLE tb_reading_time (
   id INTEGER PRIMARY KEY,
   book_id INTEGER,
@@ -81,9 +84,22 @@ CREATE TABLE tb_reading_time (
 )
 ''';
 
+const createGroupSQL = '''
+CREATE TABLE tb_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT,
+  parent_id INTEGER,
+  is_deleted INTEGER DEFAULT 0,
+  create_time TEXT,
+  update_time TEXT,
+  FOREIGN KEY (parent_id) REFERENCES tb_groups(id)
+)
+''';
+
 class DBHelper {
   static final DBHelper _instance = DBHelper._internal();
   static Database? _database;
+  static bool updatedDB = false;
 
   factory DBHelper() {
     return _instance;
@@ -98,7 +114,7 @@ class DBHelper {
   }
 
   Future<Database> initDB() async {
-    int dbVersion = 6;
+    int dbVersion = currentDbVersion;
     switch (defaultTargetPlatform) {
       case TargetPlatform.macOS:
       case TargetPlatform.android:
@@ -137,8 +153,8 @@ class DBHelper {
     }
   }
 
-  static void close() {
-    _database?.close();
+  static Future<void> close() async {
+    await _database?.close();
     _database = null;
   }
 
@@ -148,13 +164,13 @@ class DBHelper {
     switch (oldVersion) {
       case 0:
         AnxLog.info('Database: create database version $newVersion');
-        await db.execute(CREATE_BOOK_SQL);
-        await db.execute(CREATE_NOTE_SQL);
-        await db.execute(CREATE_THEME_SQL);
-        await db.execute(CREATE_STYLE_SQL);
-        await db.execute(CREATE_READING_TIME_SQL);
-        await db.execute(PRIMARY_THEME_1);
-        await db.execute(PRIMARY_THEME_2);
+        await db.execute(createBookSQL);
+        await db.execute(createNoteSQL);
+        await db.execute(createThemeSQL);
+        await db.execute(createStyleSQL);
+        await db.execute(createReadingTimeSQL);
+        await db.execute(primaryTheme1);
+        await db.execute(primaryTheme2);
         continue case1;
       case1:
       case 1:
@@ -228,6 +244,37 @@ class DBHelper {
       case 5:
         // add a column (reader_note) to tb_notes, null default
         await db.execute("ALTER TABLE tb_notes ADD COLUMN reader_note TEXT");
+        continue case6;
+      case6:
+      case 6:
+        // create groups table and migrate existing data
+        await db.execute(createGroupSQL);
+        // add a column (file_md5) to tb_books
+        await db.execute("ALTER TABLE tb_books ADD COLUMN file_md5 TEXT");
+
+        // Insert root group
+        await db.execute(
+            "INSERT INTO tb_groups (id, name, parent_id, create_time, update_time) VALUES (0, 'Root', NULL, datetime('now'), datetime('now'))");
+
+        // Get all unique group_ids from books
+        final List<Map<String, dynamic>> uniqueGroups = await db.rawQuery('''
+          SELECT DISTINCT group_id 
+          FROM tb_books 
+          WHERE group_id IS NOT NULL AND group_id != 0
+        ''');
+
+        // Create groups for existing group_ids
+        for (var i = 0; i < uniqueGroups.length; i++) {
+          final groupId = uniqueGroups[i]['group_id'];
+          await db.execute('''
+            INSERT INTO tb_groups (id, name, parent_id, create_time, update_time)
+            VALUES (?, '...', 0, datetime('now'), datetime('now'))
+          ''', [groupId]);
+        }
+    }
+    
+    if (oldVersion != 0 && Prefs().webdavStatus) {
+      updatedDB = true;
     }
   }
 }

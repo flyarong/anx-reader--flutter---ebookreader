@@ -1,7 +1,11 @@
+import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/enums/book_sync_status.dart';
 import 'package:anx_reader/models/book.dart';
+import 'package:anx_reader/providers/sync_status.dart';
 import 'package:anx_reader/service/book.dart';
 import 'package:anx_reader/widgets/bookshelf/book_bottom_sheet.dart';
 import 'package:anx_reader/widgets/bookshelf/book_cover.dart';
+import 'package:anx_reader/widgets/bookshelf/book_sync_status_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,9 +27,29 @@ class BookItem extends ConsumerWidget {
           });
     }
 
+    BookSyncStatusEnum bookSyncStatus =
+        ref.watch(syncStatusProvider).whenOrNull(data: (data) {
+              if (data.downloading.contains(book.id)) {
+                return BookSyncStatusEnum.downloading;
+              } else if (data.uploading.contains(book.id)) {
+                return BookSyncStatusEnum.uploading;
+              } else if (data.localOnly.contains(book.id)) {
+                return BookSyncStatusEnum.localOnly;
+              } else if (data.remoteOnly.contains(book.id)) {
+                return BookSyncStatusEnum.remoteOnly;
+              } else if (data.both.contains(book.id)) {
+                return BookSyncStatusEnum.both;
+              } else if (data.nonExistent.contains(book.id)) {
+                return BookSyncStatusEnum.nonExistent;
+              } else {
+                return BookSyncStatusEnum.checking;
+              }
+            }) ??
+            BookSyncStatusEnum.checking;
+
     return GestureDetector(
       onTap: () {
-        openBook(context, book, ref);
+        pushToReadingPage(ref, context, book);
       },
       onLongPress: () {
         handleLongPress(context);
@@ -42,12 +66,13 @@ class BookItem extends ConsumerWidget {
               child: Container(
                 decoration: BoxDecoration(
                   boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
-                      spreadRadius: 5,
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
+                    if (!Prefs().eInkMode)
+                      BoxShadow(
+                        color: Colors.grey.withAlpha(100),
+                        spreadRadius: 5,
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
                   ],
                 ),
                 child: Row(
@@ -59,12 +84,34 @@ class BookItem extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 5),
-          Text(
-            book.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          SizedBox(
+            height: 55,
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        book.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    if (Prefs().webdavStatus)
+                      SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: BookSyncStatusIcon(
+                          syncStatus: bookSyncStatus,
+                        ),
+                      ),
+                  ],
+                ),
           Row(
             children: [
               Expanded(
@@ -84,6 +131,9 @@ class BookItem extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis),
               ),
             ],
+          ),
+              ],
+            ),
           ),
         ],
       ),

@@ -5,10 +5,12 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_style.dart';
 import 'package:anx_reader/models/font_model.dart';
 import 'package:anx_reader/page/reading_page.dart';
+import 'package:anx_reader/page/settings_page/subpage/fonts.dart';
 import 'package:anx_reader/service/book_player/book_player_server.dart';
 import 'package:anx_reader/service/font.dart';
 import 'package:anx_reader/utils/font_parser.dart';
 import 'package:anx_reader/utils/get_path/get_base_path.dart';
+import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/widgets/icon_and_text.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/more_settings.dart';
 import 'package:anx_reader/widgets/reading_page/widget_title.dart';
@@ -16,6 +18,7 @@ import 'package:anx_reader/dao/theme.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
+import 'package:anx_reader/widgets/reading_page/widgets/bgimg_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
@@ -27,7 +30,7 @@ enum PageTurn {
   String getLabel(BuildContext context) {
     switch (this) {
       case PageTurn.noAnimation:
-        return L10n.of(context).no_animation;
+        return L10n.of(context).noAnimation;
       case PageTurn.slide:
         return L10n.of(context).slide;
       case PageTurn.scroll:
@@ -42,11 +45,13 @@ class StyleWidget extends StatefulWidget {
     required this.themes,
     required this.epubPlayerKey,
     required this.setCurrentPage,
+    required this.hideAppBarAndBottomBar,
   });
 
   final List<ReadTheme> themes;
   final GlobalKey<EpubPlayerState> epubPlayerKey;
   final Function setCurrentPage;
+  final Function hideAppBarAndBottomBar;
 
   @override
   StyleWidgetState createState() => StyleWidgetState();
@@ -63,12 +68,27 @@ class StyleWidgetState extends State<StyleWidget> {
       child: Column(
         children: [
           widgetTitle(
-              L10n.of(context).reading_page_style, ReadingSettings.theme),
+              L10n.of(context).readingPageStyle, ReadingSettings.theme),
           sliders(),
           const SizedBox(height: 10),
           fontAndPageTurn(),
           const Divider(),
-          themeSelector(),
+          Row(
+            children: [
+              Expanded(child: themeSelector()),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                onPressed: () {
+                  widget.setCurrentPage(const BgimgSelector());
+                },
+                icon: const Icon(Icons.arrow_forward_ios),
+                iconAlignment: IconAlignment.end,
+                label: Text(L10n.of(context).readingPageStyleBackground),
+              )
+            ],
+          ),
         ],
       ),
     );
@@ -78,17 +98,22 @@ class StyleWidgetState extends State<StyleWidget> {
     Directory fontDir = getFontDir();
     List<FontModel> fontList = [
       FontModel(
-        label: L10n.of(context).add_new_font,
+        label: L10n.of(context).downloadFonts,
+        name: 'download',
+        path: '',
+      ),
+      FontModel(
+        label: L10n.of(context).addNewFont,
         name: 'newFont',
         path: '',
       ),
       FontModel(
-        label: L10n.of(context).follow_book,
+        label: L10n.of(context).followBook,
         name: 'book',
         path: '',
       ),
       FontModel(
-        label: L10n.of(context).system_font,
+        label: L10n.of(context).systemFont,
         name: 'system',
         path: 'system',
       ),
@@ -99,7 +124,7 @@ class StyleWidgetState extends State<StyleWidget> {
     //       label: getFontNameFromFile(element),
     //       name: 'customFont' + ,
     //       path:
-    //           'http://localhost:${Server().port}/fonts/${element.path.split('/').last}',
+    //           'http://127.0.0.1:${Server().port}/fonts/${element.path.split('/').last}',
     //     ));
     //   }
     // });
@@ -110,7 +135,7 @@ class StyleWidgetState extends State<StyleWidget> {
         label: getFontNameFromFile(element),
         name: 'customFont$i',
         path:
-            'http://localhost:${Server().port}/fonts/${element.path.split(Platform.pathSeparator).last}',
+            'http://127.0.0.1:${Server().port}/fonts/${element.path.split(Platform.pathSeparator).last}',
       ));
     }
 
@@ -118,10 +143,24 @@ class StyleWidgetState extends State<StyleWidget> {
   }
 
   Widget fontAndPageTurn() {
+    FontModel? font = fonts().firstWhere(
+        (element) => element.path == Prefs().font.path,
+        orElse: () => FontModel(
+            label: L10n.of(context).followBook, name: 'book', path: ''));
+
+    Widget? leadingIcon(String name) {
+      if (name == 'download') {
+        return const Icon(Icons.download);
+      } else if (name == 'newFont') {
+        return const Icon(Icons.add);
+      }
+      return null;
+    }
+
     return Row(children: [
       Expanded(
         child: DropdownMenu<PageTurn>(
-          label: Text(L10n.of(context).reading_page_page_turning_method),
+          label: Text(L10n.of(context).readingPagePageTurningMethod),
           initialSelection: Prefs().pageTurnStyle,
           expandedInsets: const EdgeInsets.only(right: 5),
           inputDecorationTheme: InputDecorationTheme(
@@ -147,7 +186,7 @@ class StyleWidgetState extends State<StyleWidget> {
         child: DropdownMenu<FontModel>(
           label: Text(L10n.of(context).font),
           expandedInsets: const EdgeInsets.only(left: 5),
-          initialSelection: Prefs().font,
+          initialSelection: font,
           inputDecorationTheme: InputDecorationTheme(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(50),
@@ -156,8 +195,18 @@ class StyleWidgetState extends State<StyleWidget> {
           onSelected: (FontModel? font) async {
             if (font == null) return;
             if (font.name == 'newFont') {
+              widget.hideAppBarAndBottomBar(false);
               await importFont();
-              setState(() {});
+              AnxToast.show(
+                  L10n.of(navigatorKey.currentContext!).commonSuccess);
+              return;
+            } else if (font.name == 'download') {
+              widget.hideAppBarAndBottomBar(false);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const FontsSettingPage()),
+              );
               return;
             }
             epubPlayerKey.currentState!.changeFont(font);
@@ -167,8 +216,7 @@ class StyleWidgetState extends State<StyleWidget> {
               .map((font) => DropdownMenuEntry(
                     value: font,
                     label: font.label,
-                    leadingIcon:
-                        font.name == 'newFont' ? const Icon(Icons.add) : null,
+                    leadingIcon: leadingIcon(font.name),
                   ))
               .toList(),
         ),
@@ -193,14 +241,14 @@ class StyleWidgetState extends State<StyleWidget> {
       children: [
         IconAndText(
           icon: const Icon(Icons.line_weight),
-          text: L10n.of(context).reading_page_line_spacing,
+          text: L10n.of(context).readingPageLineSpacing,
         ),
         Expanded(
           child: Slider(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            value: bookStyle.lineHeight,
-            onChanged: (double value) {
-              setState(() {
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              value: bookStyle.lineHeight,
+              onChanged: (double value) {
+                setState(() {
                   bookStyle.lineHeight = value;
                   widget.epubPlayerKey.currentState!.changeStyle(bookStyle);
                   Prefs().saveBookStyleToPrefs(bookStyle);
@@ -213,7 +261,7 @@ class StyleWidgetState extends State<StyleWidget> {
         ),
         IconAndText(
           icon: const Icon(Icons.height),
-          text: L10n.of(context).reading_page_paragraph_spacing,
+          text: L10n.of(context).readingPageParagraphSpacing,
         ),
         Expanded(
           child: Slider(
@@ -241,7 +289,7 @@ class StyleWidgetState extends State<StyleWidget> {
       children: [
         IconAndText(
           icon: const Icon(Icons.format_size),
-          text: L10n.of(context).reading_page_font_size,
+          text: L10n.of(context).readingPageFontSize,
         ),
         Expanded(
           child: Slider(
@@ -264,7 +312,7 @@ class StyleWidgetState extends State<StyleWidget> {
   }
 
   SizedBox themeSelector() {
-    const size = 50.0;
+    const size = 40.0;
     const paddingSize = 5.0;
     EdgeInsetsGeometry padding = const EdgeInsets.all(paddingSize);
     return SizedBox(
@@ -333,6 +381,14 @@ class StyleWidgetState extends State<StyleWidget> {
                       .changeTheme(widget.themes[index]);
                   setState(() {
                     currentThemeId = widget.themes[index].id;
+                  });
+                },
+                onSecondaryTap: () {
+                  setState(() {
+                    widget.setCurrentPage(ThemeChangeWidget(
+                      readTheme: widget.themes[index],
+                      setCurrentPage: widget.setCurrentPage,
+                    ));
                   });
                 },
                 onLongPress: () {

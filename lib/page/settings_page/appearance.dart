@@ -12,9 +12,18 @@ import 'package:anx_reader/widgets/settings/settings_tile.dart';
 const List<Map<String, String>> languageOptions = [
   {'system': 'System'},
   {'English': 'en'},
-  {'简体中文': 'zh'},
+  {'简体中文': 'zh-CN'},
   {'繁體中文': 'zh-TW'},
-  {'Türkçe': 'tr'}
+  {'Türkçe': 'tr'},
+  {'Deutsch': 'de'},
+  {'العربية': 'ar'},
+  {'Русский': 'ru'},
+  {'Français': 'fr'},
+  {'Español': 'es'},
+  {'Italiano': 'it'},
+  {'Português': 'pt'}, 
+  {'日本語': 'ja'},
+  {'한국어': 'ko'},
 ];
 
 class AppearanceSetting extends StatefulWidget {
@@ -27,10 +36,24 @@ class AppearanceSetting extends StatefulWidget {
 class _AppearanceSettingState extends State<AppearanceSetting> {
   @override
   Widget build(BuildContext context) {
+    final languageSubtitle = Prefs().locale == null
+        ? languageOptions[0].values.first
+        : languageOptions
+            .firstWhere(
+                (element) =>
+                    element.values.first ==
+                    Prefs().locale!.languageCode +
+                        (Prefs().locale!.countryCode != null
+                            ? "-${Prefs().locale!.countryCode}"
+                            : ""),
+                orElse: () => languageOptions[0])
+            .keys
+            .first;
+
     return settingsSections(
       sections: [
         SettingsSection(
-          title: Text(L10n.of(context).settings_appearance_theme),
+          title: Text(L10n.of(context).settingsAppearanceTheme),
           tiles: [
             const CustomSettingsTile(
                 child: Padding(
@@ -38,7 +61,7 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
               child: ChangeThemeMode(),
             )),
             SettingsTile.navigation(
-                title: Text(L10n.of(context).settings_appearance_themeColor),
+                title: Text(L10n.of(context).settingsAppearanceThemeColor),
                 leading: const Icon(Icons.color_lens),
                 onPressed: (context) async {
                   await showColorPickerDialog(context);
@@ -53,32 +76,32 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
                 });
               },
             ),
+            SettingsTile.switchTile(
+              title: Text(L10n.of(context).eInkMode),
+              leading: const Icon(Icons.contrast),
+              initialValue: Prefs().eInkMode,
+              onToggle: (bool value) {
+                setState(() {
+                  Prefs().saveThemeModeToPrefs('light');
+                  Prefs().eInkMode = value;
+                });
+              },
+            ),
           ],
         ),
         SettingsSection(
-            title: Text(L10n.of(context).settings_appearance_display),
+            title: Text(L10n.of(context).settingsAppearanceDisplay),
             tiles: [
               SettingsTile.navigation(
-                  title: Text(L10n.of(context).settings_appearance_language),
-                  value: Text(
-                    Prefs().locale == null
-                        ? languageOptions[0].values.first
-                        : languageOptions
-                            .firstWhere((element) =>
-                                element.values.first ==
-                                Prefs().locale!.languageCode +
-                                    (Prefs().locale!.countryCode != null
-                                        ? "-${Prefs().locale!.countryCode}"
-                                        : ""))
-                            .keys
-                            .first,
-                  ),
+                  title: Text(L10n.of(context).settingsAppearanceLanguage),
+                  value: Text(languageSubtitle),
                   leading: const Icon(Icons.language),
                   onPressed: (context) {
                     showLanguagePickerDialog(context);
                   }),
               SettingsTile.switchTile(
-                title: Text(L10n.of(context).settings_appearance_open_book_animation),
+                title: Text(
+                    L10n.of(context).settingsAppearanceOpenBookAnimation),
                 leading: const Icon(Icons.animation),
                 initialValue: Prefs().openBookAnimation,
                 onToggle: (bool value) {
@@ -89,11 +112,11 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
               ),
             ]),
         SettingsSection(
-            title: Text(L10n.of(context).settings_bookshelf_cover),
+            title: Text(L10n.of(context).settingsBookshelfCover),
             tiles: [
               CustomSettingsTile(
                   child: ListTile(
-                title: Text(L10n.of(context).settings_bookshelf_cover_width),
+                title: Text(L10n.of(context).settingsBookshelfCoverWidth),
                 subtitle: Row(
                   children: [
                     Text(Prefs().bookCoverWidth.toStringAsFixed(0)),
@@ -114,13 +137,37 @@ class _AppearanceSettingState extends State<AppearanceSetting> {
                 ),
               )),
             ]),
+        SettingsSection(
+          title:
+              Text(L10n.of(context).settingsAppearanceBottomNavigatorShow),
+          tiles: [
+            SettingsTile.switchTile(
+              title: Text(L10n.of(context).navBarStatistics),
+              initialValue: Prefs().bottomNavigatorShowStatistics,
+              onToggle: (bool value) {
+                setState(() {
+                  Prefs().bottomNavigatorShowStatistics = value;
+                });
+              },
+            ),
+            SettingsTile.switchTile(
+              title: Text(L10n.of(context).navBarNotes),
+              initialValue: Prefs().bottomNavigatorShowNote,
+              onToggle: (bool value) {
+                setState(() {
+                  Prefs().bottomNavigatorShowNote = value;
+                });
+              },
+            ),
+          ],
+        ),
       ],
     );
   }
 }
 
 void showLanguagePickerDialog(BuildContext context) {
-  final title = L10n.of(context).settings_appearance_language;
+  final title = L10n.of(context).settingsAppearanceLanguage;
   final saveToPrefs = Prefs().saveLocaleToPrefs;
 
   final children = languageOptions.map((e) {
@@ -141,7 +188,7 @@ Future<void> showColorPickerDialog(BuildContext context) async {
     context: context,
     builder: (BuildContext context) {
       return AlertDialog(
-        title: Text(L10n.of(context).settings_appearance_themeColor),
+        title: Text(L10n.of(context).settingsAppearanceThemeColor),
         content: SingleChildScrollView(
           child: ColorPicker(
             pickerColor: pickedColor,
@@ -155,13 +202,13 @@ Future<void> showColorPickerDialog(BuildContext context) async {
         ),
         actions: <Widget>[
           TextButton(
-            child: Text(L10n.of(context).common_cancel),
+            child: Text(L10n.of(context).commonCancel),
             onPressed: () {
               Navigator.of(context).pop();
             },
           ),
           TextButton(
-            child: Text(L10n.of(context).common_ok),
+            child: Text(L10n.of(context).commonOk),
             onPressed: () {
               prefsProvider.saveThemeToPrefs(pickedColor.value);
               Navigator.of(context).pop();

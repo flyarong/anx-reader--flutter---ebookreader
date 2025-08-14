@@ -23,12 +23,14 @@ class FontModel {
     ''';
   }
 
+  String get litePath => path.split('/').last;
+
   static FontModel fromJson(String fontJson) {
     final Map<String, dynamic> json = jsonDecode(fontJson);
     return FontModel(
       label: json['label'],
       name: json['name'],
-      path: 'http://localhost:${Server().port}/fonts/${json['path']}',
+      path: 'http://127.0.0.1:${Server().port}/fonts/${json['path']}',
     );
   }
 
@@ -37,7 +39,7 @@ class FontModel {
       identical(this, other) ||
       other is FontModel &&
           runtimeType == other.runtimeType &&
-          name == other.name;
+          litePath == other.litePath;
 
   @override
   int get hashCode => name.hashCode ^ path.hashCode;

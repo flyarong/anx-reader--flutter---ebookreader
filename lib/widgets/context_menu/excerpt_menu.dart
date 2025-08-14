@@ -4,6 +4,7 @@ import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book_note.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/utils/toast/common.dart';
+import 'package:anx_reader/widgets/book_share/excerpt_share_service.dart';
 import 'package:anx_reader/widgets/context_menu/reader_note_menu.dart';
 import 'package:anx_reader/widgets/icon_and_text.dart';
 import 'package:flutter/material.dart';
@@ -87,6 +88,23 @@ class ExcerptMenuState extends State<ExcerptMenu> {
   Future<void> onColorSelected(String color, {bool close = true}) async {
     Prefs().annotationColor = color;
     annoColor = color;
+
+    BookNote? existingNote;
+    DateTime? createTime;
+    String? readerNote;
+
+    if (widget.id != null) {
+      try {
+        existingNote = await selectBookNoteById(widget.id!);
+        createTime = existingNote.createTime;
+        readerNote = existingNote.readerNote;
+      } catch (e) {
+        createTime = DateTime.now();
+      }
+    } else {
+      createTime = DateTime.now();
+    }
+
     BookNote bookNote = BookNote(
       id: widget.id,
       bookId: epubPlayerKey.currentState!.widget.book.id,
@@ -95,7 +113,8 @@ class ExcerptMenuState extends State<ExcerptMenu> {
       chapter: epubPlayerKey.currentState!.chapterTitle,
       type: annoType,
       color: annoColor,
-      createTime: DateTime.now(),
+      readerNote: readerNote,
+      createTime: createTime,
       updateTime: DateTime.now(),
     );
     noteId = await insertBookNote(bookNote);
@@ -175,12 +194,12 @@ class ExcerptMenuState extends State<ExcerptMenu> {
           InkWell(
             onTap: () {
               Clipboard.setData(ClipboardData(text: widget.annoContent));
-              AnxToast.show(L10n.of(context).notes_page_copied);
+              AnxToast.show(L10n.of(context).notesPageCopied);
               widget.onClose();
             },
             child: IconAndText(
               icon: const Icon(EvaIcons.copy),
-              text: L10n.of(context).context_menu_copy,
+              text: L10n.of(context).contextMenuCopy,
             ),
           ),
           // Web search
@@ -195,7 +214,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
             },
             child: IconAndText(
               icon: const Icon(EvaIcons.globe),
-              text: L10n.of(context).context_menu_search,
+              text: L10n.of(context).contextMenuSearch,
             ),
           ),
           // toggle translation menu
@@ -203,7 +222,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
             onTap: widget.toggleTranslationMenu,
             child: IconAndText(
               icon: const Icon(Icons.translate),
-              text: L10n.of(context).context_menu_translate,
+              text: L10n.of(context).contextMenuTranslate,
             ),
           ),
           // edit note
@@ -217,7 +236,7 @@ class ExcerptMenuState extends State<ExcerptMenu> {
               },
               child: IconAndText(
                 icon: const Icon(EvaIcons.edit_2_outline),
-                text: L10n.of(context).context_menu_write_idea,
+                text: L10n.of(context).contextMenuWriteIdea,
               ),
             ),
           // AI chat
@@ -236,7 +255,24 @@ class ExcerptMenuState extends State<ExcerptMenu> {
             },
             child: IconAndText(
               icon: const Icon(EvaIcons.message_circle_outline),
-              text: L10n.of(context).ai_chat,
+              text: L10n.of(context).aiChat,
+            ),
+          ),
+          // share
+          InkWell(
+            onTap: () {
+              widget.onClose();
+              ExcerptShareService.showShareExcerpt(
+                context: context,
+                bookTitle: epubPlayerKey.currentState!.book.title,
+                author: epubPlayerKey.currentState!.book.author,
+                excerpt: widget.annoContent,
+                chapter: epubPlayerKey.currentState!.chapterTitle,
+              );
+            },
+            child: IconAndText(
+              icon: const Icon(EvaIcons.share_outline),
+              text: L10n.of(context).contextMenuShare,
             ),
           ),
         ],
@@ -253,9 +289,14 @@ class ExcerptMenuState extends State<ExcerptMenu> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              operatorMenu,
+              SingleChildScrollView(
+                  scrollDirection: Axis.horizontal, child: operatorMenu),
               const SizedBox(height: 10),
-              if (!widget.footnote) annotationMenu,
+              if (!widget.footnote)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: annotationMenu,
+                ),
             ],
           ),
           const SizedBox(height: 10),

@@ -1,6 +1,9 @@
 import 'package:anx_reader/dao/book.dart';
+import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/reading_time.dart';
+import 'package:anx_reader/providers/sync.dart';
 
 import 'database.dart';
 
@@ -277,4 +280,13 @@ Future<List<Map<Book, int>>> selectBookReadingTimeOfAll(DateTime date) async {
   }
 
   return result;
+}
+
+Future<void> deleteReadingTimeByBookId(List<int> bookIds) async {
+  final db = await DBHelper().database;
+  for (var bookId in bookIds) {
+    await db
+        .delete('tb_reading_time', where: 'book_id = ?', whereArgs: [bookId]);
+  }
+  Sync().syncData(SyncDirection.both, null, trigger: SyncTrigger.auto);
 }

@@ -1,87 +1,36 @@
 import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
+import 'package:anx_reader/enums/sync_protocol.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
-import 'package:anx_reader/providers/anx_webdav.dart';
+import 'package:anx_reader/providers/sync.dart';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/main.dart';
+import 'package:anx_reader/service/sync/sync_connection_tester.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:webdav_client/webdav_client.dart';
-
-
-Future<Map<String, dynamic>> testWebdavInfo(Map webdavInfo) async {
-  var client = newClient(
-    webdavInfo['url'],
-    user: webdavInfo['username'],
-    password: webdavInfo['password'],
-    debug: true,
-  );
-
-  client.setHeaders({'accept-charset': 'utf-8'});
-  client.setConnectTimeout(8000);
-  client.setSendTimeout(8000);
-  client.setReceiveTimeout(8000);
-
-  try {
-    await client.ping();
-    return {'status': true};
-  } catch (e) {
-    return {'status': false, 'error': e.toString()};
-  }
-}
-
-Future<void> testWebdav(Map webdavInfo) async {
-  final context = navigatorKey.currentContext!;
-  Widget buildAlertDialog(String title, String content) {
-    return AlertDialog(
-      title: Text(title),
-      content: Text(content),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: Text(L10n.of(context).common_ok),
-        ),
-      ],
-    );
-  }
-
-  final result = await testWebdavInfo(webdavInfo);
-
-  if (result['status']) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return buildAlertDialog(L10n.of(context).common_success,
-            L10n.of(context).webdav_connection_success);
-      },
-    );
-  } else {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return buildAlertDialog(L10n.of(context).common_failed,
-            '${L10n.of(context).webdav_connection_failed}\n${result['error']}');
-      },
-    );
-  }
-}
 
 Future<bool> testEnableWebdav() async {
-  BuildContext context = navigatorKey.currentContext!;
-  final webdavInfo = Prefs().webdavInfo;
+  final webdavInfo = Prefs().getSyncInfo(SyncProtocol.webdav);
   if (webdavInfo['url'] != null &&
       webdavInfo['username'] != null &&
       webdavInfo['password'] != null) {
-    final result = await testWebdavInfo(webdavInfo);
-    if (result['status']) {
+    final result = await SyncConnectionTester.testConnection(
+      protocol: SyncProtocol.webdav,
+      config: {
+        'url': webdavInfo['url'],
+        'username': webdavInfo['username'],
+        'password': webdavInfo['password'],
+      },
+    );
+    if (result.isSuccess) {
       return true;
     } else {
-      AnxToast.show(L10n.of(context).webdav_connection_failed);
+      AnxToast.show(
+          L10n.of(navigatorKey.currentContext!).webdavConnectionFailed);
     }
   } else {
-    AnxToast.show(L10n.of(context).webdav_set_info_first);
+    AnxToast.show(L10n.of(navigatorKey.currentContext!).webdavSetInfoFirst);
   }
   return false;
 }
@@ -92,26 +41,28 @@ void chooseDirection(WidgetRef ref) {
       context: navigatorKey.currentContext!,
       builder: (context) {
         return SimpleDialog(
-          title: Text(L10n.of(context).webdav_choose_Sources),
+          title: Text(L10n.of(context).webdavChoose_Sources),
           children: [
             SimpleDialogOption(
               onPressed: () async {
                 Navigator.pop(context);
-                await AnxWebdav().syncData(SyncDirection.upload, ref);
+                await Sync().syncData(SyncDirection.upload, ref,
+                    trigger: SyncTrigger.manual);
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(L10n.of(context).webdav_upload),
+                child: Text(L10n.of(context).webdavUpload),
               ),
             ),
             SimpleDialogOption(
               onPressed: () async {
                 Navigator.pop(context);
-                await AnxWebdav().syncData(SyncDirection.download, ref);
+                await Sync().syncData(SyncDirection.download, ref,
+                    trigger: SyncTrigger.manual);
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(L10n.of(context).webdav_download),
+                child: Text(L10n.of(context).webdavDownload),
               ),
             ),
           ],

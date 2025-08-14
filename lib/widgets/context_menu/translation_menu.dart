@@ -1,10 +1,7 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
-import 'package:anx_reader/l10n/generated/L10n.dart';
+import 'package:anx_reader/enums/lang_list.dart';
 import 'package:anx_reader/service/translate/index.dart';
-import 'package:anx_reader/utils/toast/common.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:icons_plus/icons_plus.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 class TranslationMenu extends StatefulWidget {
@@ -18,39 +15,14 @@ class TranslationMenu extends StatefulWidget {
 }
 
 class _TranslationMenuState extends State<TranslationMenu> {
-  String? translatedText;
-  bool isLoading = true;
-  bool _mounted = true;
-
   @override
   void initState() {
     super.initState();
-    if (_mounted) {
-      _translate();
-    }
   }
 
   @override
   void dispose() {
-    _mounted = false;
     super.dispose();
-  }
-
-  Future<void> _translate() async {
-    try {
-      final result = await translateText(widget.content);
-      if (!_mounted) return;
-      setState(() {
-        translatedText = result;
-        isLoading = false;
-      });
-    } catch (e) {
-      if (!_mounted) return;
-      setState(() {
-        translatedText = L10n.of(context).translate_error;
-        isLoading = false;
-      });
-    }
   }
 
   Widget _langPicker(bool isFrom) {
@@ -66,7 +38,7 @@ class _TranslationMenuState extends State<TranslationMenu> {
         ),
         controller: menuController,
         menuChildren: [
-          for (var lang in LangList.values)
+          for (var lang in LangListEnum.values)
             PointerInterceptor(
               child: MenuItemButton(
                 onPressed: () {
@@ -75,7 +47,6 @@ class _TranslationMenuState extends State<TranslationMenu> {
                   } else {
                     Prefs().translateTo = lang;
                   }
-                  setState(() {});
                 },
                 child: Text(lang.getNative(context)),
               ),
@@ -125,43 +96,26 @@ class _TranslationMenuState extends State<TranslationMenu> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  if (isLoading)
-                    const Center(
-                      child: CircularProgressIndicator(),
-                    )
-                  else
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: translatedText != null ? 1.0 : 0.0,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            translatedText ?? '',
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          const Divider(),
-                          Row(
-                            children: [
-                              _langPicker(true),
-                              const Icon(Icons.arrow_forward_ios, size: 16),
-                              _langPicker(false),
-                              const Spacer(),
-                              IconButton(
-                                onPressed: () {
-                                  Clipboard.setData(
-                                      ClipboardData(text: widget.content));
-                                  AnxToast.show(
-                                      L10n.of(context).notes_page_copied);
-                                },
-                                icon: const Icon(EvaIcons.copy),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: 1.0,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        translateText(widget.content),
+                        const Divider(),
+                        Row(
+                          children: [
+                            _langPicker(true),
+                            const Icon(Icons.arrow_forward_ios, size: 16),
+                            _langPicker(false),
+                            const Spacer(),
+                          ],
+                        ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),

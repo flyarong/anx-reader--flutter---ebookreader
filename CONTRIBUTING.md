@@ -1,4 +1,4 @@
-[English](#Contributing-to-Anx-Reader) | [简体中文](#让安读更好)
+[English](#contributing-to-anx-reader) | [简体中文](#让安读更好) | [Русский](#вклад-в-anx-reader)
 
 # Contributing to Anx Reader
 
@@ -70,7 +70,18 @@ Anx Reader uses [Flutter_inappwebview](https://pub.dev/packages/flutter_inappweb
 
 The `JavaScript` code can be found in the `assets/foliate-js` directory, where you'll find the code responsible for rendering eBooks. The app loads the `index.html` file from the `assets/foliate-js` directory using a [built-in server](lib/service/book_player/book_player_server.dart).
 
-When debugging the `js`, you can find some commented code at the top of `book.js` in the `assets/foliate-js` directory. You can uncomment this code, place a test book in the `assets/local` directory, modify `book.js` with `let url = '../local/***.epub'`, and open the `index.html` file in your browser to see the result.
+#### Better Debugging Experience
+For a better debugging experience, the project provides a `debug.html` file. Here's how to use it:
+```bash
+cd assets/foliate-js
+npm install
+npm run debug
+```
+Open your browser and navigate to `http://localhost:3000/debug.html`
+
+ - Use the control buttons in the top right corner of the page to test the page-turning functionality
+ - View console output and debug information in the browser developer tools
+ - Modify `mockParams` in `debug.html` to test different styles and parameters
 
 To adjust the rendering of books, you can modify the `getCSS` function in the `book.js` file. These CSS styles will be applied to the book.
 
@@ -78,7 +89,19 @@ The main part of the communication between `js` and `dart` is in [epub_player.da
 
 After re-commenting the code in `book.js`, rerun the application.
 
-Please submit a Pull Request after re-commenting the code in `book.js`.
+#### Building and Integrating
+1. **Development Debugging**:
+   - Modify the source code in the `src/` directory
+   - Use `debug.html` for debugging
+2. **Building and Packaging**:
+   ```bash
+    cd assets/foliate-js
+    npm install
+    npm run build
+    ```
+    This will generate the `dist/bundle.js` file, which the `index.html` will load.
+3. **Flutter Integration Testing**:
+   After building, rerun the Flutter application to test the integration.
 
 # 让安读更好
 安读是一款开源项目，我们欢迎您的任何贡献，您可以对项目进行翻译、修复 bug、添加新功能，编写文档等。如果您想要贡献，以下内容可能会对您有所帮助。
@@ -149,12 +172,138 @@ android {
 
 `JavaScript`代码位于`assets/foliate-js`目录下，您可以在这里找到渲染电子书的代码。软件通过 [内置服务器](lib/service/book_player/book_player_server.dart) 加载`assets/foliate-js`目录下的`index.html`文件。
 
-在调试`js`时，您可以在`assets/foliate-js`目录下的`book.js`头部看到一些被注释的代码，您可以取消注释这些代码，然后将测试书籍放入`assets/local`目录下，修改`book.js`中的`let url = '../local/***.epub'`然后在浏览器中打开`index.html`文件，即可看到效果。
+#### 更好地调试
+为了更好的调试体验，项目提供了`debug.html`文件。使用方法如下：
+```bash
+cd assets/foliate-js
+npm install
+npm run debug
+```
+在浏览器中打开 `http://localhost:3000/debug.html`
+
+ - 使用页面右上角的控制按钮测试翻页功能
+ - 在浏览器开发者工具中查看控制台输出和调试信息
+ - 修改 `debug.html` 中的 `mockParams` 来测试不同的样式和参数
+
 
 如果想要调整书籍渲染效果可以修改`book.js`文件中的`getCSS`函数，这些css将会被应用到书籍中。
 
 `js`与`dart`之间的通信的主要部分在[epub_player.dart](lib/page/book_player/epub_player.dart)中，您可以在这里找到与`js`通信的代码，wenview 界面也是在这里加载的。
 
-在重新注释`book.js`中的代码后，重新运行应用程序即可。
 
-请在重新注释`book.js`中的代码后提交 Pull Request。
+#### 构建和集成
+1. **开发调试**：
+   - 修改 `src/` 目录下的源代码
+   - 使用 `debug.html` 进行调试
+
+2. **构建打包**：
+   ```bash
+   cd assets/foliate-js
+   npm install
+   npm run build
+   ```
+   这会生成 `dist/bundle.js` 文件，`index.html` 会加载这个打包后的文件。
+
+3. **Flutter 集成测试**：
+   构建完成后，重新运行 Flutter 应用程序来测试集成效果。
+
+# Вклад в Anx Reader
+
+Anx Reader — это проект с открытым исходным кодом, и мы приветствуем любой ваш вклад. Вы можете помочь с переводом, исправлением ошибок, добавлением новых функций, написанием документации и многим другим. Если вы хотите внести свой вклад, следующее руководство может оказаться полезным.
+
+Давайте начнем!
+
+### Запуск
+- Установите [Flutter](https://flutter.dev).
+- Клонируйте репозиторий и перейдите в каталог проекта.
+Выполните следующие команды:
+```
+flutter pub get
+flutter gen-l10n
+dart run build_runner watch
+flutter run # или нажмите кнопку запуска в вашей IDE
+```
+
+### Участие в разработке
+1. Сделайте форк этого репозитория.
+2. Создайте свою ветку для новой функции (`git checkout -b feature/AmazingFeature`).
+3. Внесите изменения (например, добавление новых функций, исправление ошибок, перевод и т. д.).
+4. Закоммитьте ваши изменения (`git commit -m 'Add some AmazingFeature'`).
+5. Отправьте изменения в ветку (`git push origin feature/AmazingFeature`).
+6. Создайте Pull Request.
+
+### Сборка
+Вам понадобится ключ подписи для создания APK. Вы можете сгенерировать новый или использовать опцию отладочной подписи.
+
+Если вы хотите сгенерировать ключ подписи, пожалуйста, обратитесь к [этой инструкции](https://developer.android.com/studio/publish/app-signing).
+
+Используя опцию отладочной подписи, вы можете изменить следующее в файле `android/app/build.gradle`:
+
+```
+android {
+    // ...
+    buildTypes {
+      release {
+        signingConfig signingConfigs.debug // использование отладочной подписи
+      }
+    }
+    // ...
+}
+```
+
+
+### Перевод
+Если вы хотите, чтобы Anx Reader поддерживал ваш язык, давайте поработаем над переводом вместе!
+
+Вы можете переводить документацию проекта или интерфейс приложения.
+
+**Перевод документации**
+В настоящее время у нас есть следующие документы, требующие перевода:
+- [README.md](README.md)
+
+Пожалуйста, скопируйте `README.md` как `README_код_языка.md`, переведите его и поместите переведенный файл в корневой каталог проекта. Затем добавьте ссылку на перевод вверху файла `README.md`.
+
+**Перевод интерфейса приложения**
+- Anx Reader использует [intl](https://pub.dev/packages/intl) для многоязычной поддержки. Файлы локализации находятся в каталоге `lib/l10n`. Пожалуйста, скопируйте `app_en.arb` в `app_код_языка.arb` и переведите его.
+- Вы можете перевести недостающие поля или изменить существующие переводы.
+- Поместите переведенный файл в каталог `lib/l10n` и выполните команду `flutter gen-l10n` для генерации файлов локализации.
+- Добавьте `название вашего языка` и `код` на [странице настроек](lib/page/settings_page/appearance.dart#L83).
+- Коды языков можно найти здесь: [locale](https://saimana.com/list-of-country-locale-code/).
+- Убедитесь, что после перевода вы хотя бы раз запустили приложение, чтобы проверить, все ли работает корректно.
+- Создайте Pull Request.
+
+### Исправление ошибок и добавление новых функций
+Anx Reader использует [Flutter_inappwebview](https://pub.dev/packages/flutter_inappwebview) для отображения электронных книг, поэтому рендеринг электронных книг в проекте реализован с помощью `JavaScript`.
+
+Код `JavaScript` находится в каталоге `assets/foliate-js`. Там вы найдете код, отвечающий за рендеринг электронных книг. Приложение загружает файл `index.html` из каталога `assets/foliate-js` с помощью [встроенного сервера](lib/service/book_player/book_player_server.dart).
+
+#### Улучшение опыта отладки
+Для улучшения опыта отладки в проекте предусмотрен файл `debug.html`. Вот как его использовать:
+```
+cd assets/foliate-js
+npm install
+npm run debug
+```
+Откройте браузер и перейдите по адресу `http://localhost:3000/debug.html`
+
+- Используйте кнопки управления в правом верхнем углу страницы для тестирования функции перелистывания страниц.
+- Просматривайте вывод консоли и отладочную информацию в инструментах разработчика вашего браузера.
+- Изменяйте `mockParams` в `debug.html` для тестирования различных стилей и параметров.
+
+Чтобы настроить рендеринг книг, вы можете изменить функцию `getCSS` в файле `book.js`. Эти стили CSS будут применены к книге.
+
+Основная часть взаимодействия между `js` и `dart` находится в файле [epub_player.dart](lib/page/book_player/epub_player.dart). Там вы найдете код, который обрабатывает коммуникацию с `js`. Интерфейс webview также загружается здесь.
+
+#### Сборка и интеграция
+1. **Отладка в процессе разработки**:
+   - Изменяйте исходный код в каталоге `src/`.
+   - Используйте `debug.html` для отладки.
+2. **Сборка и упаковка**:
+   ```
+    cd assets/foliate-js
+    npm install
+    npm run build
+    ```
+    Эта команда создаст файл `dist/bundle.js`, который будет загружаться файлом `index.html`.
+3. **Интеграционное тестирование с Flutter**:
+   После сборки перезапустите приложение Flutter для тестирования интеграции.

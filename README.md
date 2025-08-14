@@ -1,4 +1,4 @@
-**English** | [简体中文](README_zh.md) | [Türkçe](README_tr.md)
+**English** | [简体中文](README_zh.md) | [Türkçe](README_tr.md) | [Русский](README_RU.md)
 
 <br>
 
@@ -6,7 +6,16 @@
   <img src="./docs/images/Anx-logo.jpg" alt="Anx-logo" width="100" />
 </p>
 <h1 align="center">Anx Reader</h1>
+<p align="center"><a href="https://trendshift.io/repositories/10329" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10329" alt="Anxcye%2Fanx-reader | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a></p>
+
 <p align="center">
+  <a href="https://github.com/Anxcye/anx-reader#platform-support"><img src="https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20iOS%20%7C%20Android-lightgrey" alt="Platforms"></a>
+  <a href="https://github.com/Anxcye/anx-reader#supported-formats"><img src="https://img.shields.io/badge/formats-epub%20%7C%20fb2%20%7C%20mobi%20%7C%20txt%20%7C%20azw3%20%7C%20pdf-brightgreen" alt="Supported Formats"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Anxcye/anx-reader/releases/latest"><img src="https://img.shields.io/github/v/release/anxcye/anx-reader" alt="Latest Release"></a>
+  <a href="https://github.com/Anxcye/anx-reader/releases"><img src="https://img.shields.io/github/v/release/anxcye/anx-reader?include_prereleases" alt="Pre-release"></a>
   <a href="https://github.com/Anxcye/anx-reader/blob/main/LICENSE"><img src="https://img.shields.io/github/license/anxcye/anx-reader" alt="License" ></a>
   <a href="https://github.com/Anxcye/anx-reader/releases"><img src="https://img.shields.io/github/downloads/anxcye/anx-reader/total" alt="Downloads"></a>
   <a href="https://hellogithub.com/repository/819a2b3050204451bed552a8812114e5" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=819a2b3050204451bed552a8812114e5&claim_uid=WBA1XOQirm2GRqs&theme=small" alt="Featured｜HelloGitHub"/></a>
@@ -18,6 +27,58 @@ Anx Reader, a thoughtfully crafted e-book reader for book lovers. Featuring powe
 
 ![](./docs/images/main.jpg)
 
+**Cross-Platform** iOS/macOS/Windows/Android
+
+**Full Sync** Reading Progress/Book Files/Highlighted Notes
+
+**Multiple AI** OpenAI/Claude/Gemini/DeepSeek
+
+**Insightful Data** Detailed and Intuitive Charts - Weekly/Monthly/Yearly/Heatmap
+
+**Notes** Multiple Ways to Filter/Sort - Export as TXT, Markdown, CSV
+
+**Highly Customizable Styles** Line Spacing/Paragraph Spacing/Margins/Fonts/Color Schemes/Page Turning Methods
+
+**Practical Features** Translation/Search/Quick Ask AI/Write Ideas/Text-to-Speech
+
+
+<table border="1">
+  <tr>
+    <th>OS</th>
+    <th>Source</th>
+  </tr>
+  <tr>
+    <td>iOS</td>
+    <td>
+      <a href="https://apps.apple.com/app/anx-reader/id6743196413" target="_blank">
+        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" height="45"/>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td>macOS</td>
+    <td>
+      <a href="https://apps.apple.com/app/anx-reader/id6743196413" target="_blank"><img src="https://developer.apple.com/app-store/marketing/guidelines/images/badge-download-on-the-mac-app-store.svg" alt="Mac App Store" height="45"/></a>
+      <a href="https://github.com/Anxcye/anx-reader/releases/latest" target="_blank"><img src="https://github.com/user-attachments/assets/cf61e197-d756-4606-a8ad-fb591f79fdfc" alt="GitHub" height="45"/></a>
+    </td>
+  </tr>
+  <tr>
+    <td>Windows</td>
+    <td>
+      <a href="https://github.com/Anxcye/anx-reader/releases/latest" target="_blank">
+        <img src="https://github.com/user-attachments/assets/cf61e197-d756-4606-a8ad-fb591f79fdfc" alt="GitHub" height="45"/>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td>Android</td>
+    <td>
+      <a href="https://github.com/Anxcye/anx-reader/releases/latest" target="_blank">
+        <img src="https://github.com/user-attachments/assets/cf61e197-d756-4606-a8ad-fb591f79fdfc" alt="GitHub" height="45"/>
+      </a>
+    </td>
+  </tr>
+</table>
 
 📚 **Rich Format Support**
 - Support for major e-book formats: EPUB, MOBI, AZW3, FB2, TXT
@@ -52,7 +113,7 @@ Anx Reader, a thoughtfully crafted e-book reader for book lovers. Featuring powe
 - Instant word translation to enhance reading efficiency
 
 💻 **Cross-Platform Support**
-- Seamless experience on Android / Windows / MacOS(beta)
+- Seamless experience on Android / Windows / MacOS / iOS
 - Consistent user interface across devices
 
 ### TODO
@@ -64,7 +125,7 @@ Anx Reader, a thoughtfully crafted e-book reader for book lovers. Featuring powe
 - [ ] Full-text translation
 - [ ] Support for more file types (pdf)
 - [X] Support for WebDAV synchronization
-- [ ] Support for Linux, MacOS
+- [ ] Support for Linux
 
 ### I Encountered a Problem, What Should I Do?
 Check [Troubleshooting](./docs/troubleshooting.md#English)
@@ -73,17 +134,20 @@ Submit an [issue](https://github.com/Anxcye/anx-reader/issues/new/choose), and w
 
 Telegram Group: [https://t.me/AnxReader](https://t.me/AnxReader)
 
+QQ Group：1042905699
+
 ### Screenshots
-| ![](./docs/images/wide_main.png) | ![](./docs/images/wide_ai.png) |
+| ![](./docs/images/wide1.png) | ![](./docs/images/wide2.png) |
 | :------------------------------: | :----------------------------: |
-|   ![](./docs/images/wide1.png)   |  ![](./docs/images/wide2.png)  |
 |   ![](./docs/images/wide3.png)   |  ![](./docs/images/wide4.png)  |
 |   ![](./docs/images/wide5.png)   |  ![](./docs/images/wide6.png)  |
+|   ![](./docs/images/wide7.png)   |  ![](./docs/images/wide8.png)  |
 
 
 | ![](./docs/images/mobile1.png) | ![](./docs/images/mobile2.png) | ![](./docs/images/mobile3.png) |
 | :----------------------------: | :----------------------------: | :----------------------------: |
 | ![](./docs/images/mobile4.png) | ![](./docs/images/mobile5.png) | ![](./docs/images/mobile6.png) |
+| ![](./docs/images/mobile7.png) | ![](./docs/images/mobile8.png) | ![](./docs/images/mobile9.png) |
 
 ## Donations
 If you like Anx Reader, please consider supporting the project by donating. Your donation will help me maintain and improve the project.
@@ -101,12 +165,17 @@ Want to build Anx Reader from source? Please follow these steps:
 
 You may encounter Flutter version incompatibility issues. Please refer to the [Flutter documentation](https://flutter.dev/docs/get-started/install).
 
+
 ## Code signing policy
 - Committers and reviewers: [Members team](https://github.com/anxcye/anx-reader/graphs/contributors)
 - Approvers: [Owners](https://github.com/anxcye)
+- [Privacy Policy](https://anx.anxcye.com/privacy.html)
+- [Terms of Service](https://anx.anxcye.com/terms.html)
 
+### Sponsors
+| ![signpath](https://signpath.org/assets/favicon-50x50.png) | Free code signing on Windows provided by [SignPath.io](https://about.signpath.io/),certficate by [SignPath Foundation](https://signpath.org/) |
+|------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
 
-Free code signing on Windows provided by [SignPath.io](https://about.signpath.io/),certficate by [SignPath Foundation](https://signpath.org/)
 
 ## License
 This project is licensed under the [MIT License](./LICENSE).

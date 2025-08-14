@@ -3,7 +3,7 @@
 <p align="center">
   <img src="./docs/images/Anx-logo.jpg" alt="Anx-logo" width="100" />
 </p>
-<h1 align="center">安读 - 让阅读更专注</h1>
+<h1 align="center">Anx Reader - 让阅读更专注</h1>
 
 <p align="center">
   <a href="https://github.com/Anxcye/anx-reader/blob/main/LICENSE"><img src="https://img.shields.io/github/license/anxcye/anx-reader" alt="License" ></a>
@@ -13,10 +13,53 @@
 </p>
 
 
-安读，一款为热爱阅读的你精心打造的电子书阅读器。集成多种 AI 能力，支持丰富的电子书格式，让阅读更智能、更专注。现代化界面设计，只为提供纯粹的阅读体验。
+Anx Reader，一款为热爱阅读的你精心打造的电子书阅读器。集成多种 AI 能力，支持丰富的电子书格式，让阅读更智能、更专注。现代化界面设计，只为提供纯粹的阅读体验。
 
 
 ![](./docs/images/9_zh.jpg)
+
+
+<table border="1">
+  <tr>
+    <th>OS</th>
+    <th>Source</th>
+  </tr>
+  <tr>
+    <td>iOS</td>
+    <td>
+      <a href="https://apps.apple.com/app/anx-reader/id6743196413" target="_blank">
+        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" height="45"/>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td>macOS</td>
+    <td>
+      <a href="https://apps.apple.com/app/anx-reader/id6743196413" target="_blank">
+        <img src="https://developer.apple.com/app-store/marketing/guidelines/images/badge-download-on-the-mac-app-store.svg" alt="Mac App Store" height="45"/>
+      </a>
+      <a href="https://github.com/Anxcye/anx-reader/releases/latest" target="_blank">
+        <img src="https://github.com/user-attachments/assets/cf61e197-d756-4606-a8ad-fb591f79fdfc" alt="GitHub" height="45"/>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td>Windows</td>
+    <td>
+      <a href="https://github.com/Anxcye/anx-reader/releases/latest" target="_blank">
+        <img src="https://github.com/user-attachments/assets/cf61e197-d756-4606-a8ad-fb591f79fdfc" alt="GitHub" height="45"/>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td>Android</td>
+    <td>
+      <a href="https://github.com/Anxcye/anx-reader/releases/latest" target="_blank">
+        <img src="https://github.com/user-attachments/assets/cf61e197-d756-4606-a8ad-fb591f79fdfc" alt="GitHub" height="45"/>
+      </a>
+    </td>
+  </tr>
+</table>
 
 
 📚 **丰富的格式支持**
@@ -76,18 +119,21 @@
 
 Telegram 群组：[https://t.me/AnxReader](https://t.me/AnxReader)
 
+QQ群：1042905699
+
+
 ### 截图
-| ![](./docs/images/wide_main.png) | ![](./docs/images/wide_ai.png) |
-| :------------------------------: | :----------------------------: |
-|   ![](./docs/images/wide1.png)   |  ![](./docs/images/wide2.png)  |
-|   ![](./docs/images/wide3.png)   |  ![](./docs/images/wide4.png)  |
-|   ![](./docs/images/wide5.png)   |  ![](./docs/images/wide6.png)  |
+| ![](./docs/images/zh/wide1.png) | ![](./docs/images/zh/wide2.png) |
+| :--------------------------: | :--------------------------: |
+| ![](./docs/images/zh/wide3.png) | ![](./docs/images/zh/wide4.png) |
+| ![](./docs/images/zh/wide5.png) | ![](./docs/images/zh/wide6.png) |
+| ![](./docs/images/zh/wide7.png) | ![](./docs/images/zh/wide8.png) |
 
 
-| ![](./docs/images/mobile1.png) | ![](./docs/images/mobile2.png) | ![](./docs/images/mobile3.png) |
+| ![](./docs/images/zh/mobile1.png) | ![](./docs/images/zh/mobile2.png) | ![](./docs/images/zh/mobile3.png) |
 | :----------------------------: | :----------------------------: | :----------------------------: |
-| ![](./docs/images/mobile4.png) | ![](./docs/images/mobile5.png) | ![](./docs/images/mobile6.png) |
-
+| ![](./docs/images/zh/mobile4.png) | ![](./docs/images/zh/mobile5.png) | ![](./docs/images/zh/mobile6.png) |
+| ![](./docs/images/zh/mobile7.png) | ![](./docs/images/zh/mobile8.png) | ![](./docs/images/zh/mobile9.png) |
 
 ## 捐赠
 如果你喜欢安读，请考虑捐赠支持项目。您的支持将帮助我优化功能、修复问题，并为您带来更好的阅读体验！感谢您的慷慨支持！

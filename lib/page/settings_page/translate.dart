@@ -1,6 +1,8 @@
 import 'package:anx_reader/config/shared_preference_provider.dart';
+import 'package:anx_reader/enums/lang_list.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/service/translate/index.dart';
+import 'package:anx_reader/utils/toast/common.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
 import 'package:anx_reader/widgets/settings/settings_title.dart';
 import 'package:flutter/material.dart';
@@ -15,19 +17,40 @@ class TranslateSetting extends StatefulWidget {
 }
 
 class _TranslateSettingState extends State<TranslateSetting> {
+  Widget autoTranslateSelection() {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      trailing: Switch(
+        value: Prefs().autoTranslateSelection,
+        onChanged: (bool value) => setState(() {
+          Prefs().autoTranslateSelection = value;
+        }),
+      ),
+      title: Text(L10n.of(context).readingPageAutoTranslateSelection),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return settingsSections(
       sections: [
         SettingsSection(
           tiles: [
-            const CustomSettingsTile(
+            CustomSettingsTile(
               child: Card(
                 shadowColor: Colors.transparent,
                 child: Padding(
                   padding: EdgeInsets.all(8.0),
-                  child: TranslationConfig(),
+                  child: TranslationConfig(
+                    setState: () => setState(() {}),
+                  ),
                 ),
+              ),
+            ),
+            CustomSettingsTile(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: autoTranslateSelection(),
               ),
             ),
             for (var service in TranslateService.values)
@@ -42,7 +65,9 @@ class _TranslateSettingState extends State<TranslateSetting> {
 }
 
 class TranslationConfig extends StatelessWidget {
-  const TranslationConfig({super.key});
+  const TranslationConfig({super.key, required this.setState});
+
+  final VoidCallback setState;
 
   static const currentServiceTextStyle = TextStyle(
     fontSize: 18,
@@ -61,14 +86,16 @@ class TranslationConfig extends StatelessWidget {
                 showModalBottomSheet(
                   context: context,
                   builder: (context) => const TranslateServicePicker(),
-                );
+                ).then((value) {
+                  setState();
+                });
               },
               child: Text(
                 Prefs().translateService.label,
                 style: currentServiceTextStyle,
               ),
             ),
-            Text(L10n.of(context).settings_translate_current_service),
+            Text(L10n.of(context).settingsTranslateCurrentService),
           ],
         ),
         const Divider(),
@@ -82,7 +109,9 @@ class TranslationConfig extends StatelessWidget {
                     context: context,
                     builder: (context) =>
                         const TranslateLangPicker(isFrom: true),
-                  );
+                  ).then((value) {
+                    setState();
+                  });
                 },
                 child: Text(Prefs().translateFrom.getNative(context)),
               ),
@@ -95,7 +124,9 @@ class TranslationConfig extends StatelessWidget {
                     context: context,
                     builder: (context) =>
                         const TranslateLangPicker(isFrom: false),
-                  );
+                  ).then((value) {
+                    setState();
+                  });
                 },
                 child: Text(
                   Prefs().translateTo.getNative(context),
@@ -136,15 +167,16 @@ class TranslateLangPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      itemCount: LangList.values.length,
+      itemCount: LangListEnum.values.length,
       itemBuilder: (context, index) => ListTile(
-        title: Text(LangList.values[index].getNative(context)),
-        subtitle: Text(LangList.values[index].name[0].toUpperCase() + LangList.values[index].name.substring(1)),
+        title: Text(LangListEnum.values[index].getNative(context)),
+        subtitle: Text(LangListEnum.values[index].name[0].toUpperCase() +
+            LangListEnum.values[index].name.substring(1)),
         onTap: () {
           if (isFrom) {
-            Prefs().translateFrom = LangList.values[index];
+            Prefs().translateFrom = LangListEnum.values[index];
           } else {
-            Prefs().translateTo = LangList.values[index];
+            Prefs().translateTo = LangListEnum.values[index];
           }
           Navigator.pop(context);
         },
@@ -170,6 +202,19 @@ class _TranslateSettingItemState extends State<TranslateSettingItem> {
     fontWeight: FontWeight.bold,
   );
 
+  Map<String, dynamic> _currentConfig = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  void _loadConfig() {
+    _currentConfig = getTranslateServiceConfig(widget.service);
+    setState(() {});
+  }
+
   Widget languageText(String text) {
     return Expanded(
       child: Text(
@@ -180,119 +225,267 @@ class _TranslateSettingItemState extends State<TranslateSettingItem> {
     );
   }
 
+  Widget _buildConfigItem(ConfigItem item) {
+    switch (item.type) {
+      case ConfigItemType.text:
+      case ConfigItemType.password:
+        return TextField(
+          obscureText: item.type == ConfigItemType.password,
+          decoration: InputDecoration(
+            labelText: item.label,
+            helperText: item.description,
+            border: const OutlineInputBorder(),
+          ),
+          controller: TextEditingController(
+              text: _currentConfig[item.key]?.toString() ??
+                  item.defaultValue?.toString() ??
+                  ''),
+          onChanged: (value) {
+            _currentConfig[item.key] = value;
+          },
+        );
+
+      case ConfigItemType.number:
+        return TextField(
+          decoration: InputDecoration(
+            labelText: item.label,
+            helperText: item.description,
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.number,
+          controller: TextEditingController(
+              text: _currentConfig[item.key]?.toString() ??
+                  item.defaultValue?.toString() ??
+                  ''),
+          onChanged: (value) {
+            _currentConfig[item.key] = int.tryParse(value) ?? 0;
+          },
+        );
+
+      case ConfigItemType.toggle:
+        return SwitchListTile(
+          title: Text(item.label),
+          subtitle: item.description != null ? Text(item.description!) : null,
+          value: _currentConfig[item.key] ?? item.defaultValue ?? false,
+          onChanged: (value) {
+            setState(() {
+              _currentConfig[item.key] = value;
+            });
+          },
+        );
+
+      case ConfigItemType.select:
+        if (item.options == null || item.options!.isEmpty) {
+          return const Text('None options');
+        }
+
+        final String currentValue = _currentConfig[item.key]?.toString() ??
+            item.defaultValue?.toString() ??
+            item.options!.first['value']?.toString() ??
+            '';
+
+        return DropdownButtonFormField<String>(
+          decoration: InputDecoration(
+            labelText: item.label,
+            helperText: item.description,
+            border: const OutlineInputBorder(),
+          ),
+          value: currentValue,
+          items: item.options!.map((option) {
+            return DropdownMenuItem<String>(
+              value: option['value'].toString(),
+              child: Text(option['label'].toString()),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _currentConfig[item.key] = value;
+              });
+            }
+          },
+        );
+
+      case ConfigItemType.radio:
+        if (item.options == null || item.options!.isEmpty) {
+          return const Text('None options');
+        }
+
+        final currentValue = _currentConfig[item.key] ?? item.defaultValue;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                item.label,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            if (item.description != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(item.description!),
+              ),
+            ...item.options!.map((option) {
+              return RadioListTile<dynamic>(
+                title: Text(option['label'].toString()),
+                value: option['value'],
+                groupValue: currentValue,
+                onChanged: (value) {
+                  setState(() {
+                    _currentConfig[item.key] = value;
+                  });
+                },
+              );
+            }),
+          ],
+        );
+
+      case ConfigItemType.checkbox:
+        return CheckboxListTile(
+          title: Text(item.label),
+          subtitle: item.description != null ? Text(item.description!) : null,
+          value: _currentConfig[item.key] ?? item.defaultValue ?? false,
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _currentConfig[item.key] = value;
+              });
+            }
+          },
+        );
+      case ConfigItemType.tip:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+              ),
+              Expanded(
+                child: Text(
+                  item.defaultValue.toString(),
+                ),
+              ),
+            ],
+          ),
+        );
+    }
+  }
+
+  void _saveConfig() {
+    try {
+      saveTranslateServiceConfig(widget.service, _currentConfig);
+      AnxToast.show(L10n.of(context).commonSaved);
+    } catch (e) {
+      AnxToast.show(L10n.of(context).commonFailed);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-      child: Card(
-        margin: const EdgeInsets.all(10),
-        color: isExpanded
-            ? Theme.of(context).colorScheme.secondaryContainer
-            : Colors.transparent,
-        shadowColor: Colors.transparent,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.translate_outlined),
-              title: Text(widget.service.label),
-              onTap: () {
-                setState(() {
-                  isExpanded = !isExpanded;
-                });
-              },
-            ),
-            AnimatedCrossFade(
-              firstChild: const SizedBox.shrink(),
-              secondChild: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+    final configItems = getTranslateServiceConfigItems(widget.service);
+
+    return Card(
+      margin: const EdgeInsets.all(10),
+      color: isExpanded
+          ? Theme.of(context).colorScheme.secondaryContainer
+          : Colors.transparent,
+      shadowColor: Colors.transparent,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.translate_outlined),
+            title: Text(widget.service.label),
+            onTap: () {
+              setState(() {
+                isExpanded = !isExpanded;
+              });
+            },
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.bounceInOut,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        TextButton(
-                          onPressed: () {
-                            translateText(
-                              testText,
-                              service: widget.service,
-                            ).then((value) {
-                              SmartDialog.show(
-                                useSystem: true,
-                                animationType:
-                                    SmartAnimationType.centerFade_otherSlide,
-                                builder: (context) => AlertDialog(
-                                  title: const Center(
-                                    child: Icon(Icons.check_circle),
-                                  ),
-                                  content: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          languageText(
-                                            Prefs().translateFrom.getNative(context),
-                                          ),
-                                          const Icon(Icons.arrow_forward_ios),
-                                          languageText(
-                                            Prefs().translateTo.getNative(context),
-                                          ),
-                                        ],
-                                      ),
-                                      const Divider(),
-                                      const Text(testText),
-                                      const Icon(Icons.arrow_downward),
-                                      Text(value),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).catchError((error) {
-                              SmartDialog.show(
-                                useSystem: true,
-                                animationType:
-                                    SmartAnimationType.centerFade_otherSlide,
-                                builder: (context) => AlertDialog(
-                                  title: Center(
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                        ...configItems.map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: _buildConfigItem(item),
+                          );
+                        }),
+                        const Divider(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                _saveConfig();
+                                SmartDialog.show(
+                                  useSystem: true,
+                                  animationType:
+                                      SmartAnimationType.centerFade_otherSlide,
+                                  builder: (context) => AlertDialog(
+                                    title: const Center(
+                                      child: Icon(Icons.check_circle),
+                                    ),
+                                    content: Column(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.error),
-                                        Text(L10n.of(context).common_failed),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            languageText(
+                                              Prefs()
+                                                  .translateFrom
+                                                  .getNative(context),
+                                            ),
+                                            const Icon(Icons.arrow_forward_ios),
+                                            languageText(
+                                              Prefs()
+                                                  .translateTo
+                                                  .getNative(context),
+                                            ),
+                                          ],
+                                        ),
+                                        const Divider(),
+                                        const Text(testText),
+                                        const Icon(Icons.arrow_downward),
+                                        translateText(testText,
+                                            service: widget.service),
                                       ],
                                     ),
                                   ),
-                                  content: Text(error.toString()),
-                                ),
-                              );
-                            });
-                          },
-                          child: Text(L10n.of(context).common_test),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              isExpanded = !isExpanded;
-                            });
-                          },
-                          child: Text(L10n.of(context).common_save),
+                                );
+                              },
+                              child: Text(L10n.of(context).commonTest),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                _saveConfig();
+                                setState(() {
+                                  isExpanded = !isExpanded;
+                                });
+                              },
+                              child: Text(L10n.of(context).commonSave),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              crossFadeState: isExpanded
-                  ? CrossFadeState.showSecond
-                  : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 200),
-            ),
-          ],
-        ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }

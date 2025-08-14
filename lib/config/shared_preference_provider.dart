@@ -2,15 +2,27 @@ import 'dart:convert';
 import 'dart:core';
 
 import 'package:anx_reader/enums/ai_prompts.dart';
+import 'package:anx_reader/enums/bgimg_alignment.dart';
+import 'package:anx_reader/enums/bgimg_type.dart';
 import 'package:anx_reader/enums/convert_chinese_mode.dart';
+import 'package:anx_reader/enums/excerpt_share_template.dart';
+import 'package:anx_reader/enums/lang_list.dart';
+import 'package:anx_reader/enums/sort_field.dart';
+import 'package:anx_reader/enums/sort_order.dart';
+import 'package:anx_reader/enums/sync_protocol.dart';
+import 'package:anx_reader/enums/writing_mode.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
+import 'package:anx_reader/models/bgimg.dart';
 import 'package:anx_reader/models/book_style.dart';
 import 'package:anx_reader/models/font_model.dart';
 import 'package:anx_reader/models/read_theme.dart';
+import 'package:anx_reader/models/reading_info.dart';
 import 'package:anx_reader/models/reading_rules.dart';
 import 'package:anx_reader/models/window_info.dart';
 import 'package:anx_reader/service/translate/index.dart';
+import 'package:anx_reader/utils/get_current_language_code.dart';
+import 'package:anx_reader/utils/tts_model_list.dart';
 import 'package:anx_reader/widgets/reading_page/style_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,7 +57,7 @@ class Prefs extends ChangeNotifier {
 
   Locale? get locale {
     String? localeCode = prefs.getString('locale');
-    if (localeCode == null || localeCode == '') return null;
+    if (localeCode == null || localeCode == 'System') return null;
     if (localeCode.contains('-')) {
       List<String> codes = localeCode.split('-');
       return Locale(codes[0], codes[1]);
@@ -120,17 +132,46 @@ class Prefs extends ChangeNotifier {
     return DateTime.parse(beginDateStr);
   }
 
-  void saveWebdavInfo(Map webdavInfo) {
-    prefs.setString('webdavInfo', jsonEncode(webdavInfo));
+  // void saveWebdavInfo(Map webdavInfo) {
+  //   prefs.setString('webdavInfo', jsonEncode(webdavInfo));
+  //   notifyListeners();
+  // }
+
+  // Map get webdavInfo {
+  //   String? webdavInfoJson = prefs.getString('webdavInfo');
+  //   if (webdavInfoJson == null) {
+  //     return {};
+  //   }
+  //   return jsonDecode(webdavInfoJson);
+  // }
+
+  // Sync protocol selection
+  String? get syncProtocol {
+    return prefs.getString('syncProtocol');
+  }
+
+  set syncProtocol(String? protocol) {
+    if (protocol != null) {
+      prefs.setString('syncProtocol', protocol);
+    } else {
+      prefs.remove('syncProtocol');
+    }
     notifyListeners();
   }
 
-  Map get webdavInfo {
-    String? webdavInfoJson = prefs.getString('webdavInfo');
-    if (webdavInfoJson == null) {
-      return {};
+  Map<String, dynamic> getSyncInfo(SyncProtocol protocol) {
+    String? syncInfoJson = prefs.getString('${protocol.name}Info');
+    if (syncInfoJson == null) return {};
+    return Map<String, dynamic>.from(jsonDecode(syncInfoJson));
+  }
+
+  setSyncInfo(SyncProtocol protocol, Map<String, dynamic>? info) {
+    if (info != null) {
+      prefs.setString('${protocol.name}Info', jsonEncode(info));
+    } else {
+      prefs.remove('${protocol.name}Info');
     }
-    return jsonDecode(webdavInfoJson);
+    notifyListeners();
   }
 
   void saveWebdavStatus(bool status) {
@@ -213,7 +254,7 @@ class Prefs extends ChangeNotifier {
   }
 
   double get ttsVolume {
-    return prefs.getDouble('ttsVolume') ?? 0.5;
+    return prefs.getDouble('ttsVolume') ?? 1.0;
   }
 
   set ttsPitch(double pitch) {
@@ -231,7 +272,49 @@ class Prefs extends ChangeNotifier {
   }
 
   double get ttsRate {
-    return prefs.getDouble('ttsRate') ?? 0.8;
+    return prefs.getDouble('ttsRate') ?? 0.6;
+  }
+
+  set ttsVoiceModel(String shortName) {
+    prefs.setString('ttsVoiceModel', shortName);
+    notifyListeners();
+  }
+
+  void removeTtsVoiceModel() {
+    prefs.remove('ttsVoiceModel');
+    notifyListeners();
+  }
+
+  String get ttsVoiceModel {
+    String? model = prefs.getString('ttsVoiceModel');
+    if (model == null) {
+      final languageCode = getCurrentLanguageCode().toLowerCase();
+
+      final data = ttsModelList;
+
+      for (var voice in data) {
+        String voiceLocale = voice['Locale'] as String;
+        if (voiceLocale.toLowerCase().startsWith(languageCode.toLowerCase())) {
+          model = voice['ShortName'] as String;
+          break;
+        }
+      }
+
+      if (model == null || model.isEmpty) {
+        for (var voice in data) {
+          String voiceLocale = voice['Locale'] as String;
+          if (voiceLocale.startsWith('en-')) {
+            model = voice['ShortName'] as String;
+            break;
+          }
+        }
+      }
+
+      if (model == null || model.isEmpty) {
+        model = 'en-US-JennyNeural';
+      }
+    }
+    return model;
   }
 
   set pageTurnStyle(PageTurn style) {
@@ -255,7 +338,7 @@ class Prefs extends ChangeNotifier {
     BuildContext context = navigatorKey.currentContext!;
     if (fontJson == null) {
       return FontModel(
-          label: L10n.of(context).follow_book, name: 'book', path: '');
+          label: L10n.of(context).followBook, name: 'book', path: '');
     }
     return FontModel.fromJson(fontJson);
   }
@@ -269,6 +352,15 @@ class Prefs extends ChangeNotifier {
     return prefs.getBool('trueDarkMode') ?? false;
   }
 
+  set eInkMode(bool status) {
+    prefs.setBool('eInkMode', status);
+    notifyListeners();
+  }
+
+  bool get eInkMode {
+    return prefs.getBool('eInkMode') ?? false;
+  }
+
   set translateService(TranslateService service) {
     prefs.setString('translateService', service.name);
     notifyListeners();
@@ -279,21 +371,21 @@ class Prefs extends ChangeNotifier {
         prefs.getString('translateService') ?? 'microsoft');
   }
 
-  set translateFrom(LangList from) {
+  set translateFrom(LangListEnum from) {
     prefs.setString('translateFrom', from.code);
     notifyListeners();
   }
 
-  LangList get translateFrom {
+  LangListEnum get translateFrom {
     return getLang(prefs.getString('translateFrom') ?? 'auto');
   }
 
-  set translateTo(LangList to) {
+  set translateTo(LangListEnum to) {
     prefs.setString('translateTo', to.code);
     notifyListeners();
   }
 
-  LangList get translateTo {
+  LangListEnum get translateTo {
     return getLang(prefs.getString('translateTo') ?? 'en');
   }
 
@@ -381,16 +473,7 @@ class Prefs extends ChangeNotifier {
   String getAiPrompt(AiPrompts identifier) {
     String? aiPrompt = prefs.getString('aiPrompt_${identifier.name}');
     if (aiPrompt == null) {
-      switch (identifier) {
-        case AiPrompts.test:
-          return 'Introduce yourself in one sentence, the language locale is {{language_locale}}';
-        case AiPrompts.summaryTheChapter:
-          return 'Summary the chapter, the chapter is: {{chapter}}';
-        case AiPrompts.summaryTheBook:
-          return 'Summary the book, the book is: {{book}}, the author is: {{author}}';
-        case AiPrompts.summaryThePreviousContent:
-          return 'This is the content of a book, I read it a long time ago, summarize the content, so I can quickly recall the previous content. The content is: {{previous_content}}';
-      }
+      return identifier.getPrompt();
     }
     return aiPrompt;
   }
@@ -415,7 +498,7 @@ class Prefs extends ChangeNotifier {
   }
 
   bool get autoAdjustReadingTheme {
-    return prefs.getBool('autoAdjustReadingTheme') ?? true;
+    return prefs.getBool('autoAdjustReadingTheme') ?? false;
   }
 
   set maxAiCacheCount(int count) {
@@ -436,13 +519,21 @@ class Prefs extends ChangeNotifier {
     return prefs.getBool('volumeKeyTurnPage') ?? false;
   }
 
+  set swapPageTurnArea(bool status) {
+    prefs.setBool('swapPageTurnArea', status);
+  }
+
+  bool get swapPageTurnArea {
+    return prefs.getBool('swapPageTurnArea') ?? false;
+  }
+
   set bookCoverWidth(double width) {
     prefs.setDouble('bookCoverWidth', width);
     notifyListeners();
   }
 
   double get bookCoverWidth {
-    return prefs.getDouble('bookCoverWidth') ?? 110;
+    return prefs.getDouble('bookCoverWidth') ?? 120;
   }
 
   set openBookAnimation(bool status) {
@@ -461,5 +552,296 @@ class Prefs extends ChangeNotifier {
 
   bool get onlySyncWhenWifi {
     return prefs.getBool('onlySyncWhenWifi') ?? false;
+  }
+
+  set bottomNavigatorShowNote(bool status) {
+    prefs.setBool('bottomNavigatorShowNote', status);
+    notifyListeners();
+  }
+
+  bool get bottomNavigatorShowNote {
+    return prefs.getBool('bottomNavigatorShowNote') ?? true;
+  }
+
+  set bottomNavigatorShowStatistics(bool status) {
+    prefs.setBool('bottomNavigatorShowStatistics', status);
+    notifyListeners();
+  }
+
+  bool get bottomNavigatorShowStatistics {
+    return prefs.getBool('bottomNavigatorShowStatistics') ?? true;
+  }
+
+  set syncCompletedToast(bool status) {
+    prefs.setBool('syncCompletedToast', status);
+    notifyListeners();
+  }
+
+  bool get syncCompletedToast {
+    return prefs.getBool('syncCompletedToast') ?? true;
+  }
+
+  set autoSync(bool status) {
+    prefs.setBool('autoSync', status);
+    notifyListeners();
+  }
+
+  bool get autoSync {
+    return prefs.getBool('autoSync') ?? true;
+  }
+
+  set readingInfo(ReadingInfoModel info) {
+    prefs.setString('readingInfo', jsonEncode(info.toJson()));
+    notifyListeners();
+  }
+
+  ReadingInfoModel get readingInfo {
+    String? readingInfoJson = prefs.getString('readingInfo');
+    if (readingInfoJson == null) {
+      return ReadingInfoModel();
+    }
+    return ReadingInfoModel.fromJson(jsonDecode(readingInfoJson));
+  }
+
+  bool get isSystemTts {
+    return prefs.getBool('isSystemTts') ?? false;
+  }
+
+  set isSystemTts(bool status) {
+    prefs.setBool('isSystemTts', status);
+    notifyListeners();
+  }
+
+  bool get showTextUnderIconButton {
+    return prefs.getBool('showTextUnderIconButton') ?? true;
+  }
+
+  set showTextUnderIconButton(bool show) {
+    prefs.setBool('showTextUnderIconButton', show);
+    notifyListeners();
+  }
+
+  DateTime? get lastUploadBookDate {
+    String? lastUploadBookDateStr = prefs.getString('lastUploadBookDate');
+    if (lastUploadBookDateStr == null) return null;
+    return DateTime.parse(lastUploadBookDateStr);
+  }
+
+  set lastUploadBookDate(DateTime? date) {
+    if (date == null) {
+      prefs.remove('lastUploadBookDate');
+    } else {
+      prefs.setString('lastUploadBookDate', date.toIso8601String());
+    }
+    notifyListeners();
+  }
+
+  int get lastServerPort {
+    return prefs.getInt('lastServerPort') ?? 0;
+  }
+
+  set lastServerPort(int port) {
+    prefs.setInt('lastServerPort', port);
+    notifyListeners();
+  }
+
+  SortFieldEnum get sortField {
+    return SortFieldEnum.values.firstWhere(
+      (element) => element.name == prefs.getString('sortField'),
+      orElse: () => SortFieldEnum.lastReadTime,
+    );
+  }
+
+  set sortField(SortFieldEnum field) {
+    prefs.setString('sortField', field.name);
+    notifyListeners();
+  }
+
+  SortOrderEnum get sortOrder {
+    return SortOrderEnum.values.firstWhere(
+      (element) => element.name == prefs.getString('sortOrder'),
+      orElse: () => SortOrderEnum.descending,
+    );
+  }
+
+  set sortOrder(SortOrderEnum order) {
+    prefs.setString('sortOrder', order.name);
+    notifyListeners();
+  }
+
+  ExcerptShareTemplateEnum get excerptShareTemplate {
+    return ExcerptShareTemplateEnum.values.firstWhere(
+      (element) => element.name == prefs.getString('excerptShareTemplate'),
+      orElse: () => ExcerptShareTemplateEnum.defaultTemplate,
+    );
+  }
+
+  set excerptShareTemplate(ExcerptShareTemplateEnum template) {
+    prefs.setString('excerptShareTemplate', template.name);
+    notifyListeners();
+  }
+
+  FontModel get excerptShareFont {
+    String? fontJson = prefs.getString('excerptShareFont');
+    if (fontJson == null) {
+      return FontModel(
+          label: L10n.of(navigatorKey.currentContext!).systemFont,
+          name: 'customFont0',
+          path: 'SourceHanSerifSC-Regular.otf');
+    }
+    return FontModel.fromJson(fontJson);
+  }
+
+  set excerptShareFont(FontModel font) {
+    prefs.setString('excerptShareFont', font.toJson());
+    notifyListeners();
+  }
+
+  int get excerptShareColorIndex {
+    return prefs.getInt('excerptShareColorIndex') ?? 0;
+  }
+
+  set excerptShareColorIndex(int index) {
+    prefs.setInt('excerptShareColorIndex', index);
+    notifyListeners();
+  }
+
+  int get excerptShareBgimgIndex {
+    return prefs.getInt('excerptShareBgimgIndex') ?? 1;
+  }
+
+  set excerptShareBgimgIndex(int index) {
+    prefs.setInt('excerptShareBgimgIndex', index);
+    notifyListeners();
+  }
+
+  bool get notShowReleaseLocalSpaceDialog {
+    return prefs.getBool('notShowReleaseLocalSpaceDialog') ?? false;
+  }
+
+  set notShowReleaseLocalSpaceDialog(bool status) {
+    prefs.setBool('notShowReleaseLocalSpaceDialog', status);
+    notifyListeners();
+  }
+
+  void saveTranslateServiceConfig(
+      TranslateService service, Map<String, dynamic> config) {
+    prefs.setString(
+        'translateServiceConfig_${service.name}', jsonEncode(config));
+    notifyListeners();
+  }
+
+  Map<String, dynamic>? getTranslateServiceConfig(TranslateService service) {
+    String? configJson =
+        prefs.getString('translateServiceConfig_${service.name}');
+    if (configJson == null) {
+      return null;
+    }
+    return jsonDecode(configJson) as Map<String, dynamic>;
+  }
+
+  set iapPurchaseStatus(bool isPurchased) {
+    prefs.setBool('iapPurchaseStatus', isPurchased);
+    // notifyListeners();
+  }
+
+  bool get iapPurchaseStatus {
+    return prefs.getBool('iapPurchaseStatus') ?? false;
+  }
+
+  set iapLastCheckTime(DateTime checkTime) {
+    prefs.setString('iapLastCheckTime', checkTime.toIso8601String());
+    // notifyListeners();
+  }
+
+  DateTime get iapLastCheckTime {
+    String? lastCheckTimeStr = prefs.getString('iapLastCheckTime');
+    if (lastCheckTimeStr == null) {
+      return DateTime(1970, 1, 1);
+    }
+    return DateTime.parse(lastCheckTimeStr);
+  }
+
+  WritingModeEnum get writingMode {
+    return WritingModeEnum.fromCode(prefs.getString('writingMode') ?? 'auto');
+  }
+
+  set writingMode(WritingModeEnum mode) {
+    prefs.setString('writingMode', mode.code);
+    notifyListeners();
+  }
+
+  BgimgModel get bgimg {
+    String? bgimgJson = prefs.getString('bgimg');
+    if (bgimgJson == null) {
+      return BgimgModel(
+          type: BgimgType.none, path: 'none', alignment: BgimgAlignment.center);
+    }
+    return BgimgModel.fromJson(jsonDecode(bgimgJson));
+  }
+
+  set bgimg(BgimgModel bgimg) {
+    prefs.setString('bgimg', jsonEncode(bgimg.toJson()));
+    notifyListeners();
+  }
+
+  bool get enableJsForEpub {
+    return prefs.getBool('enableJsForEpub') ?? false;
+  }
+
+  set enableJsForEpub(bool enable) {
+    prefs.setBool('enableJsForEpub', enable);
+    notifyListeners();
+  }
+
+  double get pageHeaderMargin {
+    return prefs.getDouble('pageHeaderMargin') ??
+        MediaQuery.of(navigatorKey.currentContext!).padding.bottom;
+  }
+
+  set pageHeaderMargin(double margin) {
+    prefs.setDouble('pageHeaderMargin', margin);
+    notifyListeners();
+  }
+
+  double get pageFooterMargin {
+    return prefs.getDouble('pageFooterMargin') ??
+        MediaQuery.of(navigatorKey.currentContext!).padding.bottom;
+  }
+
+  set pageFooterMargin(double margin) {
+    prefs.setDouble('pageFooterMargin', margin);
+    notifyListeners();
+  }
+
+  String? get lastAppVersion {
+    return prefs.getString('lastAppVersion');
+  }
+
+  set lastAppVersion(String? version) {
+    if (version != null) {
+      prefs.setString('lastAppVersion', version);
+    } else {
+      prefs.remove('lastAppVersion');
+    }
+    notifyListeners();
+  }
+
+  set customCSSEnabled(bool enabled) {
+    prefs.setBool('customCSSEnabled', enabled);
+    notifyListeners();
+  }
+
+  bool get customCSSEnabled {
+    return prefs.getBool('customCSSEnabled') ?? false;
+  }
+
+  set customCSS(String css) {
+    prefs.setString('customCSS', css);
+    notifyListeners();
+  }
+
+  String get customCSS {
+    return prefs.getString('customCSS') ?? '';
   }
 }

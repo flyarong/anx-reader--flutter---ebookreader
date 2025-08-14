@@ -4,6 +4,7 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/reading_time.dart';
 import 'package:anx_reader/dao/theme.dart';
 import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/book.dart';
@@ -11,7 +12,7 @@ import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/page/book_detail.dart';
 import 'package:anx_reader/page/book_player/epub_player.dart';
 import 'package:anx_reader/providers/ai_chat.dart';
-import 'package:anx_reader/providers/anx_webdav.dart';
+import 'package:anx_reader/providers/sync.dart';
 import 'package:anx_reader/service/ai/ai_dio.dart';
 import 'package:anx_reader/service/ai/prompt_generate.dart';
 import 'package:anx_reader/utils/toast/common.dart';
@@ -34,10 +35,16 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class ReadingPage extends ConsumerStatefulWidget {
-  const ReadingPage({super.key, required this.book, this.cfi});
+  const ReadingPage({
+    super.key,
+    required this.book,
+    this.cfi,
+    required this.initialThemes,
+  });
 
   final Book book;
   final String? cfi;
+  final List<ReadTheme> initialThemes;
 
   @override
   ConsumerState<ReadingPage> createState() => ReadingPageState();
@@ -48,9 +55,10 @@ final GlobalKey<ReadingPageState> readingPageKey =
 final epubPlayerKey = GlobalKey<EpubPlayerState>();
 
 class ReadingPageState extends ConsumerState<ReadingPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
+  static const empty = SizedBox.shrink();
   late Book _book;
-  Widget _currentPage = const SizedBox(height: 1);
+  late Widget _currentPage = empty;
   final Stopwatch _readTimeWatch = Stopwatch();
   Timer? _awakeTimer;
   bool bottomBarOffstage = true;
@@ -59,6 +67,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   String heroTag = 'preventHeroWhenStart';
   Widget? _aiChat;
   final aiChatKey = GlobalKey<AiChatStreamState>();
+  bool bookmarkExists = false;
 
   late FocusOnKeyEventCallback _handleKeyEvent;
 
@@ -66,12 +75,13 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   void initState() {
     if (widget.book.isDeleted) {
       Navigator.pop(context);
-      AnxToast.show(L10n.of(context).book_deleted);
+      AnxToast.show(L10n.of(context).bookDeleted);
       return;
     }
     if (Prefs().hideStatusBar) {
       hideStatusBar();
     }
+
     WidgetsBinding.instance.addObserver(this);
     _readTimeWatch.start();
     setAwakeTimer(Prefs().awakeTime);
@@ -80,16 +90,18 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     _addKeyboardListener();
     // delay 1000ms to prevent hero animation
     Future.delayed(const Duration(milliseconds: 2000), () {
-      setState(() {
-        heroTag = _book.coverFullPath;
-      });
+      if (mounted) {
+        setState(() {
+          heroTag = _book.coverFullPath;
+        });
+      }
     });
     super.initState();
   }
 
   @override
   void dispose() {
-    AnxWebdav().syncData(SyncDirection.upload, ref);
+    Sync().syncData(SyncDirection.upload, ref, trigger: SyncTrigger.auto);
     _readTimeWatch.stop();
     _awakeTimer?.cancel();
     WakelockPlus.disable();
@@ -164,7 +176,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   void hideBottomBar() {
     setState(() {
       tocOffstage = true;
-      _currentPage = const SizedBox(height: 1);
+      _currentPage = empty;
       bottomBarOffstage = true;
       if (Prefs().hideStatusBar) {
         hideStatusBar();
@@ -184,11 +196,10 @@ class ReadingPageState extends ConsumerState<ReadingPage>
   Future<void> tocHandler() async {
     setState(() {
       _tocWidget = TocWidget(
-        tocItems: epubPlayerKey.currentState!.toc,
         epubPlayerKey: epubPlayerKey,
         hideAppBarAndBottomBar: showOrHideAppBarAndBottomBar,
       );
-      _currentPage = const SizedBox(height: 1);
+      _currentPage = empty;
       tocOffstage = false;
     });
   }
@@ -219,6 +230,7 @@ class ReadingPageState extends ConsumerState<ReadingPage>
             _currentPage = page;
           });
         },
+        hideAppBarAndBottomBar: showOrHideAppBarAndBottomBar,
       );
     });
   }
@@ -231,21 +243,16 @@ class ReadingPageState extends ConsumerState<ReadingPage>
     });
   }
 
-  void onLoadEnd() {
+  Future<void> onLoadEnd() async {
     if (Prefs().autoSummaryPreviousContent) {
+      final previousContent =
+          await epubPlayerKey.currentState!.previousContent(2000);
       SmartDialog.show(
         builder: (context) => AlertDialog(
-          title: Text(L10n.of(context).reading_page_summary_previous_content),
-          content: FutureBuilder(
-            future: epubPlayerKey.currentState!.theChapterContent(),
-            builder: (context, snapshot) {
-              return AiStream(
-                  prompt: generatePromptSummaryThePreviousContent(
-                snapshot.data ?? '',
-              ));
-            },
-          ),
-        ),
+            title: Text(L10n.of(context).readingPageSummaryPreviousContent),
+            content: AiStream(
+              prompt: generatePromptSummaryThePreviousContent(previousContent),
+            )),
         onDismiss: () {
           AiDio.instance.cancel();
         },
@@ -262,28 +269,55 @@ class ReadingPageState extends ConsumerState<ReadingPage>
           context: navigatorKey.currentContext!,
           isScrollControlled: true,
           showDragHandle: true,
-          builder: (context) => Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: AiChatStream(
-                    key: aiChatKey,
-                    initialMessage: content,
-                    sendImmediate: sendImmediate,
+          builder: (context) => PointerInterceptor(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: AiChatStream(
+                      key: aiChatKey,
+                      initialMessage: content,
+                      sendImmediate: sendImmediate,
+                    ),
                   ),
                 ),
               ));
     } else {
-        setState(() {
-          _aiChat = SizedBox(
-            width: 300,
-            child: AiChatStream(
-              key: aiChatKey,
-              initialMessage: content,
-              sendImmediate: sendImmediate,
-            ),
-          );
-        });
+      setState(() {
+        _aiChat = SizedBox(
+          width: 300,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _aiChat = null;
+                  });
+                },
+                icon: const Icon(Icons.close),
+              ),
+              Expanded(
+                child: AiChatStream(
+                  key: aiChatKey,
+                  initialMessage: content,
+                  sendImmediate: sendImmediate,
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    }
+  }
+
+  void updateState() {
+    if (mounted) {
+      setState(() {
+        bookmarkExists = epubPlayerKey.currentState!.bookmarkExists;
+      });
     }
   }
 
@@ -319,6 +353,9 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                   onTap: () {
                     showOrHideAppBarAndBottomBar(false);
                   },
+                  behavior: HitTestBehavior.opaque,
+                  onVerticalDragUpdate: (details) {},
+                  onVerticalDragEnd: (details) {},
                   child: Container(
                     color: Colors.black.withAlpha(30),
                   )),
@@ -337,6 +374,19 @@ class ReadingPageState extends ConsumerState<ReadingPage>
                   ),
                   actions: [
                     aiButton,
+                    IconButton(
+                        onPressed: () {
+                          if (bookmarkExists) {
+                            epubPlayerKey.currentState!.removeAnnotation(
+                              epubPlayerKey.currentState!.bookmarkCfi,
+                            );
+                          } else {
+                            epubPlayerKey.currentState!.addBookmarkHere();
+                          }
+                        },
+                        icon: bookmarkExists
+                            ? const Icon(Icons.bookmark)
+                            : const Icon(Icons.bookmark_border)),
                     IconButton(
                       icon: const Icon(EvaIcons.more_vertical),
                       onPressed: () {
@@ -413,46 +463,59 @@ class ReadingPageState extends ConsumerState<ReadingPage>
       ),
     );
 
-    return Hero(
-      tag: Prefs().openBookAnimation ? _book.coverFullPath : heroTag,
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        body: MouseRegion(
-          onHover: (PointerHoverEvent detail) {
-            var y = detail.position.dy;
-            if (y < 30 || y > MediaQuery.of(context).size.height - 30) {
-              showOrHideAppBarAndBottomBar(true);
-            }
-          },
-          child: Stack(
-            children: [
-              Row(
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: Hero(
+        tag: Prefs().openBookAnimation ? _book.coverFullPath : heroTag,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height,
+            width: MediaQuery.of(context).size.width,
+            child: Scaffold(
+              resizeToAvoidBottomInset: false,
+              body: Stack(
                 children: [
-                  Expanded(
-                    child: Focus(
-                      focusNode: FocusNode(),
-                      onKeyEvent: _handleKeyEvent,
-                      child: EpubPlayer(
-                        key: epubPlayerKey,
-                        book: _book,
-                        cfi: widget.cfi,
-                        showOrHideAppBarAndBottomBar:
-                            showOrHideAppBarAndBottomBar,
-                        onLoadEnd: onLoadEnd,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: MouseRegion(
+                          onHover: (PointerHoverEvent detail) {
+                            var y = detail.position.dy;
+                            if (y < 30 ||
+                                y > MediaQuery.of(context).size.height - 30) {
+                              showOrHideAppBarAndBottomBar(true);
+                            }
+                          },
+                          child: Focus(
+                            focusNode: FocusNode(),
+                            onKeyEvent: _handleKeyEvent,
+                            child: EpubPlayer(
+                              key: epubPlayerKey,
+                              book: _book,
+                              cfi: widget.cfi,
+                              showOrHideAppBarAndBottomBar:
+                                  showOrHideAppBarAndBottomBar,
+                              onLoadEnd: onLoadEnd,
+                              initialThemes: widget.initialThemes,
+                              updateParent: updateState,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      _aiChat != null
+                          ? const VerticalDivider(width: 1)
+                          : const SizedBox.shrink(),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: _aiChat,
+                      ),
+                    ],
                   ),
-                  _aiChat != null
-                      ? const VerticalDivider(width: 1)
-                      : const SizedBox.shrink(),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _aiChat,
-                  ),
+                  controller,
                 ],
               ),
-              controller,
-            ],
+            ),
           ),
         ),
       ),

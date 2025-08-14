@@ -2,6 +2,7 @@ import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/utils/app_version.dart';
+import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:anx_reader/utils/toast/common.dart';
 import 'package:dio/dio.dart';
@@ -11,6 +12,9 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 Future<void> checkUpdate(bool manualCheck) async {
+  if (EnvVar.isAppStore) {
+    return;
+  }
   // if is today
   if (!manualCheck &&
       DateTime.now().difference(Prefs().lastShowUpdate) <
@@ -23,24 +27,30 @@ Future<void> checkUpdate(bool manualCheck) async {
   Response response;
   try {
     response = await Dio()
-        .get('https://api.github.com/repos/Anxcye/anx-reader/releases/latest');
+        .get('https://api.anx.anxcye.com/api/info/latest');
   } catch (e) {
     if (manualCheck) {
-      AnxToast.show(L10n.of(context).common_failed);
+      AnxToast.show(L10n.of(context).commonFailed);
     }
     throw Exception('Update: Failed to check for updates $e');
   }
-  String newVersion = response.data['tag_name'].toString().substring(1);
+  String newVersion = response.data['version'].toString().substring(1);
   String currentVersion =
-      (await getAppVersion()).substring(0, newVersion.length);
+      (await getAppVersion()).split('+').first;
   AnxLog.info('Update: new version $newVersion');
 
   List<String> newVersionList = newVersion.split('.');
   List<String> currentVersionList = currentVersion.split('.');
+  AnxLog.info('Current version: $currentVersionList, New version: $newVersionList');
   bool needUpdate = false;
   for (int i = 0; i < newVersionList.length; i++) {
-    if (int.parse(newVersionList[i]) > int.parse(currentVersionList[i])) {
+    int newVer = int.parse(newVersionList[i]);
+    int curVer = int.parse(currentVersionList[i]);
+    if (newVer > curVer) {
       needUpdate = true;
+      break;
+    } else if (newVer < curVer) {
+      needUpdate = false;
       break;
     }
   }
@@ -54,22 +64,22 @@ Future<void> checkUpdate(bool manualCheck) async {
         final body =
             response.data['body'].toString().split('\n').skip(1).join('\n');
         return AlertDialog(
-          title: Text(L10n.of(context).common_new_version,
+          title: Text(L10n.of(context).commonNewVersion,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
               )),
           content: SingleChildScrollView(
             child: MarkdownBody(
-                data: '''### ${L10n.of(context).update_new_version} $newVersion
-${L10n.of(context).update_current_version} $currentVersion
+                data: '''### ${L10n.of(context).updateNewVersion} $newVersion\n
+${L10n.of(context).updateCurrentVersion} $currentVersion\n
 $body'''),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text(L10n.of(context).common_cancel),
+                SmartDialog.dismiss();
+              },  
+              child: Text(L10n.of(context).commonCancel),
             ),
             TextButton(
               onPressed: () {
@@ -78,7 +88,16 @@ $body'''),
                         'https://github.com/Anxcye/anx-reader/releases/latest'),
                     mode: LaunchMode.externalApplication);
               },
-              child: Text(L10n.of(context).common_update),
+              child: Text(L10n.of(context).updateViaGithub),
+            ),
+            TextButton(
+              onPressed: () {
+                launchUrl(
+                    Uri.parse(
+                        'https://anx.anxcye.com/download'),
+                    mode: LaunchMode.externalApplication);
+              },
+              child: Text(L10n.of(context).updateViaOfficialWebsite),
             ),
           ],
         );
@@ -86,7 +105,7 @@ $body'''),
     );
   } else {
     if (manualCheck) {
-      AnxToast.show(L10n.of(context).common_no_new_version);
+      AnxToast.show(L10n.of(context).commonNoNewVersion);
     }
   }
 }

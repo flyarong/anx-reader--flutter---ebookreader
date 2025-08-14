@@ -4,10 +4,11 @@ import 'dart:convert';
 import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/book.dart';
 import 'package:anx_reader/dao/book_note.dart';
-import 'package:anx_reader/dao/theme.dart';
+import 'package:anx_reader/enums/reading_info.dart';
 import 'package:anx_reader/main.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/book_style.dart';
+import 'package:anx_reader/models/bookmark.dart';
 import 'package:anx_reader/models/font_model.dart';
 import 'package:anx_reader/models/read_theme.dart';
 import 'package:anx_reader/models/reading_rules.dart';
@@ -17,12 +18,14 @@ import 'package:anx_reader/page/book_player/image_viewer.dart';
 import 'package:anx_reader/page/home_page.dart';
 import 'package:anx_reader/page/reading_page.dart';
 import 'package:anx_reader/providers/book_list.dart';
+import 'package:anx_reader/providers/book_toc.dart';
+import 'package:anx_reader/providers/bookmark.dart';
 import 'package:anx_reader/service/book_player/book_player_server.dart';
 import 'package:anx_reader/utils/coordinates_to_part.dart';
 import 'package:anx_reader/utils/js/convert_dart_color_to_js.dart';
 import 'package:anx_reader/models/book_note.dart';
+import 'package:anx_reader/utils/webView/gererate_url.dart';
 import 'package:anx_reader/utils/webView/webview_console_message.dart';
-import 'package:anx_reader/utils/webView/webview_initial_variable.dart';
 import 'package:anx_reader/widgets/bookshelf/book_cover.dart';
 import 'package:anx_reader/widgets/context_menu/context_menu.dart';
 import 'package:anx_reader/widgets/reading_page/more_settings/page_turning/diagram.dart';
@@ -43,13 +46,17 @@ class EpubPlayer extends ConsumerStatefulWidget {
   final String? cfi;
   final Function showOrHideAppBarAndBottomBar;
   final Function onLoadEnd;
+  final List<ReadTheme> initialThemes;
+  final Function updateParent;
 
   const EpubPlayer(
       {super.key,
       required this.showOrHideAppBarAndBottomBar,
       required this.book,
       this.cfi,
-      required this.onLoadEnd});
+      required this.onLoadEnd,
+      required this.initialThemes,
+      required this.updateParent});
 
   @override
   ConsumerState<EpubPlayer> createState() => EpubPlayerState();
@@ -65,7 +72,6 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   String chapterHref = '';
   int chapterCurrentPage = 0;
   int chapterTotalPages = 0;
-  List<TocItem> toc = [];
   OverlayEntry? contextMenuEntry;
   AnimationController? _animationController;
   Animation<double>? _animation;
@@ -78,6 +84,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   String? backgroundColor;
   String? textColor;
   Timer? styleTimer;
+  String bookmarkCfi = '';
+  bool bookmarkExists = false;
 
   final StreamController<double> _searchProgressController =
       StreamController<double>.broadcast();
@@ -119,32 +127,40 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   }
 
   void changeTheme(ReadTheme readTheme) {
-    String backgroundColor = convertDartColorToJs(readTheme.backgroundColor);
-    String textColor = convertDartColorToJs(readTheme.textColor);
+    textColor = readTheme.textColor;
+    backgroundColor = readTheme.backgroundColor;
+
+    String bc = convertDartColorToJs(readTheme.backgroundColor);
+    String tc = convertDartColorToJs(readTheme.textColor);
 
     webViewController.evaluateJavascript(source: '''
       changeStyle({
-        backgroundColor: '#$backgroundColor',
-        fontColor: '#$textColor',
+        backgroundColor: '#$bc',
+        fontColor: '#$tc',
       })
       ''');
   }
 
-  void changeStyle(BookStyle bookStyle) {
+  void changeStyle(BookStyle? bookStyle) {
     styleTimer?.cancel();
     styleTimer = Timer(const Duration(milliseconds: 300), () {
+      BookStyle style = bookStyle ?? Prefs().bookStyle;
       webViewController.evaluateJavascript(source: '''
       changeStyle({
-        fontSize: ${bookStyle.fontSize},
-        spacing: ${bookStyle.lineHeight},
-        fontWeight: ${bookStyle.fontWeight},
-        paragraphSpacing: ${bookStyle.paragraphSpacing},
-        topMargin: ${bookStyle.topMargin},
-        bottomMargin: ${bookStyle.bottomMargin},
-        sideMargin: ${bookStyle.sideMargin},
-        letterSpacing: ${bookStyle.letterSpacing},
-        textIndent: ${bookStyle.indent},
-        maxColumnCount: ${bookStyle.maxColumnCount},
+        fontSize: ${style.fontSize},
+        spacing: ${style.lineHeight},
+        fontWeight: ${style.fontWeight},
+        paragraphSpacing: ${style.paragraphSpacing},
+        topMargin: ${style.topMargin},
+        bottomMargin: ${style.bottomMargin},
+        sideMargin: ${style.sideMargin},
+        letterSpacing: ${style.letterSpacing},
+        textIndent: ${style.indent},
+        maxColumnCount: ${style.maxColumnCount},
+        writingMode: '${Prefs().writingMode.code}',
+        backgroundImage: '${Prefs().bgimg.url}',
+        customCSS: `${Prefs().customCSS.replaceAll('`', '\\`')}`,
+        customCSSEnabled: ${Prefs().customCSSEnabled},
       })
       ''');
     });
@@ -183,14 +199,35 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
       webViewController.evaluateJavascript(source: "goToCfi('$cfi')");
 
   void addAnnotation(BookNote bookNote) {
+    final noteContent = (bookNote.readerNote ?? '')
+        .replaceAll('\n', ' ')
+        .replaceAll("'", "\\'");
     webViewController.evaluateJavascript(source: '''
       addAnnotation({
         id: ${bookNote.id},
         type: '${bookNote.type}',
         value: '${bookNote.cfi}',
         color: '#${bookNote.color}',
-        note: '${bookNote.content}',
+        note: '$noteContent',
       })
+      ''');
+  }
+
+  void addBookmark(BookmarkModel bookmark) {
+    webViewController.evaluateJavascript(source: '''
+      addAnnotation({
+        id: ${bookmark.id},
+        type: 'bookmark',
+        value: '${bookmark.cfi}',
+        color: '#000000',
+        note: 'None',
+      })
+      ''');
+  }
+
+  void addBookmarkHere() {
+    webViewController.evaluateJavascript(source: '''
+      addBookmarkHere()
       ''');
   }
 
@@ -216,7 +253,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   }
 
   Future<void> initTts() async =>
-      await webViewController.evaluateJavascript(source: "ttsHere()");
+      await webViewController.evaluateJavascript(source: "window.ttsHere()");
 
   void ttsStop() => webViewController.evaluateJavascript(source: "ttsStop()");
 
@@ -239,12 +276,19 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   Future<String> ttsPrepare() async =>
       (await webViewController.evaluateJavascript(source: "ttsPrepare()"));
 
+  Future<bool> isFootNoteOpen() async => (await webViewController
+      .evaluateJavascript(source: "window.isFootNoteOpen()"));
+
   void backHistory() {
     webViewController.evaluateJavascript(source: "back()");
   }
 
   void forwardHistory() {
     webViewController.evaluateJavascript(source: "forward()");
+  }
+
+  void refreshToc() {
+    webViewController.evaluateJavascript(source: "refreshToc()");
   }
 
   Future<String> theChapterContent() async =>
@@ -268,7 +312,18 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
     final part = coordinatesToPart(x, y);
     final currentPageTurningType = Prefs().pageTurningType;
     final pageTurningType = pageTurningTypes[currentPageTurningType];
-    switch (pageTurningType[part]) {
+
+    var action = pageTurningType[part];
+
+    if (Prefs().swapPageTurnArea) {
+      if (action == PageTurningType.prev) {
+        action = PageTurningType.next;
+      } else if (action == PageTurningType.next) {
+        action = PageTurningType.prev;
+      }
+    }
+
+    switch (action) {
       case PageTurningType.prev:
         prevPage();
         break;
@@ -293,36 +348,21 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
     ''');
   }
 
-  Future<void> getThemeColor() async {
+  void getThemeColor() {
     if (Prefs().autoAdjustReadingTheme) {
-      List<ReadTheme> themes = await selectThemes();
+      List<ReadTheme> themes = widget.initialThemes;
       final isDayMode =
           Theme.of(navigatorKey.currentContext!).brightness == Brightness.light;
       backgroundColor =
           isDayMode ? themes[0].backgroundColor : themes[1].backgroundColor;
       textColor = isDayMode ? themes[0].textColor : themes[1].textColor;
     } else {
-      backgroundColor = null;
-      textColor = null;
+      backgroundColor = Prefs().readTheme.backgroundColor;
+      textColor = Prefs().readTheme.textColor;
     }
-    setState(() {});
   }
 
   Future<void> setHandler(InAppWebViewController controller) async {
-    String uri = Uri.encodeComponent(widget.book.fileFullPath);
-    String url = 'http://localhost:${Server().port}/book/$uri';
-    String initialCfi = widget.cfi ?? widget.book.lastReadPosition;
-
-    await getThemeColor();
-
-    webviewInitialVariable(
-      controller,
-      url,
-      initialCfi,
-      backgroundColor: backgroundColor,
-      textColor: textColor,
-    );
-
     controller.addJavaScriptHandler(
         handlerName: 'onLoadEnd',
         callback: (args) {
@@ -334,14 +374,21 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
         callback: (args) {
           Map<String, dynamic> location = args[0];
           if (cfi == location['cfi']) return;
+          // if (chapterHref != location['chapterHref']) {
+          //   refreshToc();
+          // }
           setState(() {
-            cfi = location['cfi'];
-            percentage = location['percentage'] ?? 0.0;
+            cfi = location['cfi'] ?? '';
+            percentage =
+                double.tryParse(location['percentage'].toString()) ?? 0.0;
             chapterTitle = location['chapterTitle'] ?? '';
             chapterHref = location['chapterHref'] ?? '';
-            chapterCurrentPage = location['chapterCurrentPage'];
-            chapterTotalPages = location['chapterTotalPages'];
+            chapterCurrentPage = location['chapterCurrentPage'] ?? 0;
+            chapterTotalPages = location['chapterTotalPages'] ?? 0;
+            bookmarkExists = location['bookmark']['exists'] ?? false;
+            bookmarkCfi = location['bookmark']['cfi'] ?? '';
           });
+          widget.updateParent();
           saveReadingProgress();
           readingPageKey.currentState?.resetAwakeTimer();
         });
@@ -355,7 +402,8 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
         handlerName: 'onSetToc',
         callback: (args) {
           List<dynamic> t = args[0];
-          toc = t.map((i) => TocItem.fromJson(i)).toList();
+          final toc = t.map((i) => TocItem.fromJson(i)).toList();
+          ref.read(bookTocProvider.notifier).setToc(toc);
         });
     controller.addJavaScriptHandler(
         handlerName: 'onSelectionEnd',
@@ -440,6 +488,49 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
         removeOverlay();
       },
     );
+    controller.addJavaScriptHandler(
+      handlerName: 'onPullUp',
+      callback: (args) {
+        widget.showOrHideAppBarAndBottomBar(true);
+      },
+    );
+    controller.addJavaScriptHandler(
+      handlerName: 'handleBookmark',
+      callback: (args) async {
+        Map<String, dynamic> detail = args[0]['detail'];
+        bool remove = args[0]['remove'];
+        String cfi = detail['cfi'];
+        double percentage = detail['percentage'];
+        String content = detail['content'];
+
+        if (remove) {
+          ref.read(bookmarkProvider(widget.book.id).notifier).removeBookmark(
+                cfi: cfi,
+              );
+          bookmarkCfi = '';
+          bookmarkExists = false;
+        } else {
+          BookmarkModel bookmark = await ref
+              .read(BookmarkProvider(widget.book.id).notifier)
+              .addBookmark(
+                BookmarkModel(
+                  bookId: widget.book.id,
+                  cfi: cfi,
+                  percentage: percentage,
+                  content: content,
+                  chapter: chapterTitle,
+                  updateTime: DateTime.now(),
+                  createTime: DateTime.now(),
+                ),
+              );
+          bookmarkCfi = cfi;
+          bookmarkExists = true;
+          addBookmark(bookmark);
+        }
+        widget.updateParent();
+        setState(() {});
+      },
+    );
   }
 
   Future<void> onWebViewCreated(InAppWebViewController controller) async {
@@ -485,7 +576,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
     }
   }
 
-  void _handlePointerEvents(PointerEvent event) {
+  Future<void> _handlePointerEvents(PointerEvent event) async {
+    if (await isFootNoteOpen() || Prefs().pageTurnStyle == PageTurn.scroll) {
+      return;
+    }
     if (event is PointerScrollEvent) {
       if (event.scrollDelta.dy > 0) {
         nextPage();
@@ -499,14 +593,15 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   void initState() {
     book = widget.book;
     focusNode.requestFocus();
+    getThemeColor();
 
     contextMenu = ContextMenu(
       settings: ContextMenuSettings(hideDefaultSystemContextMenuItems: true),
       onCreateContextMenu: (hitTestResult) async {
-        webViewController.evaluateJavascript(source: "showContextMenu()");
+        // webViewController.evaluateJavascript(source: "showContextMenu()");
       },
       onHideContextMenu: () {
-        removeOverlay();
+        // removeOverlay();
       },
     );
     if (Prefs().openBookAnimation) {
@@ -529,7 +624,7 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   }
 
   Future<void> saveReadingProgress() async {
-    if (cfi == '') return;
+    if (cfi == '' || widget.cfi != null) return;
     Book book = widget.book;
     book.lastReadPosition = cfi;
     book.readingPercentage = percentage;
@@ -543,17 +638,9 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
   void dispose() {
     super.dispose();
     _animationController?.dispose();
-    if (defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS) {
-      InAppWebViewController.clearAllCache();
-    }
     saveReadingProgress();
     removeOverlay();
   }
-
-  String indexHtmlPath =
-      "http://localhost:${Server().port}/foliate-js/index.html";
 
   InAppWebViewSettings initialSettings = InAppWebViewSettings(
     supportZoom: false,
@@ -561,75 +648,126 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
     isInspectable: kDebugMode,
   );
 
+  void changeReadingInfo() {
+    setState(() {});
+  }
+
   Widget readingInfoWidget() {
-    if (chapterCurrentPage == 0) {
+    if (chapterCurrentPage == 0 && percentage == 0.0) {
       return const SizedBox();
     }
+
     TextStyle textStyle = TextStyle(
       color: Color(int.parse('0x$textColor')).withAlpha(150),
       fontSize: 10,
     );
 
-    Widget time = StreamBuilder(
+    Widget chapterTitleWidget = Text(
+      (chapterCurrentPage == 1 ? widget.book.title : chapterTitle),
+      style: textStyle,
+    );
+
+    Widget chapterProgressWidget = Text(
+      '$chapterCurrentPage/$chapterTotalPages',
+      style: textStyle,
+    );
+
+    Widget bookProgressWidget =
+        Text('${(percentage * 100).toStringAsFixed(2)}%', style: textStyle);
+
+    Widget timeWidget() => StreamBuilder(
         stream: Stream.periodic(const Duration(seconds: 1)),
         builder: (context, snapshot) {
           String currentTime = DateFormat('HH:mm').format(DateTime.now());
           return Text(currentTime, style: textStyle);
         });
-    Battery battery = Battery();
 
-    Widget batteryInfo = FutureBuilder(
-        future: battery.batteryLevel,
+    Widget batteryWidget = FutureBuilder(
+        future: Battery().batteryLevel,
         builder: (context, snapshot) {
           if (snapshot.hasData) {
-            return Stack(alignment: Alignment.center, children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 2, 2, 0),
-                child: Text('${snapshot.data}',
-                    style: TextStyle(
-                      color: Color(int.parse('0x$textColor')),
-                      fontSize: 9,
-                    )),
-              ),
-              Icon(
-                HeroIcons.battery_0,
-                size: 27,
-                color: Color(int.parse('0x$textColor')),
-              ),
-            ]);
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 0.8, 2, 0),
+                  child: Text('${snapshot.data}',
+                      style: TextStyle(
+                        color: Color(int.parse('0x$textColor')),
+                        fontSize: 9,
+                      )),
+                ),
+                Icon(
+                  HeroIcons.battery_0,
+                  size: 27,
+                  color: Color(int.parse('0x$textColor')),
+                ),
+              ],
+            );
           } else {
             return const SizedBox();
           }
         });
 
-    Widget batteryAndTime = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        batteryInfo,
-        const SizedBox(width: 5),
-        time,
-      ],
-    );
+    Widget batteryAndTimeWidget() => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            batteryWidget,
+            const SizedBox(width: 5),
+            timeWidget(),
+          ],
+        );
+
+    Widget getWidget(ReadingInfoEnum readingInfoEnum) {
+      switch (readingInfoEnum) {
+        case ReadingInfoEnum.chapterTitle:
+          return chapterTitleWidget;
+        case ReadingInfoEnum.chapterProgress:
+          return chapterProgressWidget;
+        case ReadingInfoEnum.bookProgress:
+          return bookProgressWidget;
+        case ReadingInfoEnum.battery:
+          return batteryWidget;
+        case ReadingInfoEnum.time:
+          return timeWidget();
+        case ReadingInfoEnum.batteryAndTime:
+          return batteryAndTimeWidget();
+        case ReadingInfoEnum.none:
+          return const SizedBox();
+      }
+    }
+
+    List<Widget> headerWidgets = [
+      getWidget(Prefs().readingInfo.headerLeft),
+      getWidget(Prefs().readingInfo.headerCenter),
+      getWidget(Prefs().readingInfo.headerRight),
+    ];
+
+    List<Widget> footerWidgets = [
+      getWidget(Prefs().readingInfo.footerLeft),
+      getWidget(Prefs().readingInfo.footerCenter),
+      getWidget(Prefs().readingInfo.footerRight),
+    ];
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SafeArea(
-            child: Text(
-                chapterCurrentPage == 1 ? widget.book.title : chapterTitle,
-                style: textStyle),
+          Padding(
+            padding: EdgeInsets.only(top: Prefs().pageHeaderMargin),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: headerWidgets,
+            ),
           ),
           const Spacer(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              batteryAndTime,
-              Text('$chapterCurrentPage/$chapterTotalPages', style: textStyle),
-              Text('${(percentage * 100).toStringAsFixed(2)}%',
-                  style: textStyle),
-            ],
+          Padding(
+            padding: EdgeInsets.only(bottom: Prefs().pageFooterMargin),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: footerWidgets,
+            ),
           ),
         ],
       ),
@@ -638,6 +776,10 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
 
   @override
   Widget build(BuildContext context) {
+    String uri = Uri.encodeComponent(widget.book.fileFullPath);
+    String url = 'http://127.0.0.1:${Server().port}/book/$uri';
+    String initialCfi = widget.cfi ?? widget.book.lastReadPosition;
+
     return KeyboardListener(
       focusNode: focusNode,
       onKeyEvent: _handleKeyAndMouseEvents,
@@ -652,14 +794,20 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
               SizedBox.expand(
                 child: InAppWebView(
                   webViewEnvironment: webViewEnvironment,
-                  initialUrlRequest: URLRequest(url: WebUri(indexHtmlPath)),
+                  initialUrlRequest: URLRequest(
+                    url: WebUri(
+                      generateUrl(
+                        url,
+                        initialCfi,
+                        backgroundColor: backgroundColor,
+                        textColor: textColor,
+                      ),
+                    ),
+                  ),
                   initialSettings: initialSettings,
                   contextMenu: contextMenu,
-                  onWebViewCreated: (controller) =>
-                      onWebViewCreated(controller),
-                  onConsoleMessage: (controller, consoleMessage) {
-                    webviewConsoleMessage(controller, consoleMessage);
-                  },
+                  onLoadStop: (controller, url) => onWebViewCreated(controller),
+                  onConsoleMessage: webviewConsoleMessage,
                 ),
               ),
               readingInfoWidget(),
@@ -691,16 +839,17 @@ class EpubPlayerState extends ConsumerState<EpubPlayer>
                     ),
                   ),
                 ),
-              SizedBox.expand(
-                child: Prefs().openBookAnimation
-                    ? IgnorePointer(
-                      ignoring: true,
-                      child: FadeTransition(
-                          opacity: _animation!,
-                          child: bookCover(context, widget.book)),
-                    )
-                    : bookCover(context, widget.book),
-              ),
+              if (Prefs().openBookAnimation)
+                SizedBox.expand(
+                  child: Prefs().openBookAnimation
+                      ? IgnorePointer(
+                          ignoring: true,
+                          child: FadeTransition(
+                              opacity: _animation!,
+                              child: bookCover(context, widget.book)),
+                        )
+                      : bookCover(context, widget.book),
+                ),
             ],
           ),
         ),

@@ -1,15 +1,19 @@
 import 'dart:io';
 
+import 'package:anx_reader/config/shared_preference_provider.dart';
 import 'package:anx_reader/dao/book.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/page/book_detail.dart';
+import 'package:anx_reader/providers/sync.dart';
 import 'package:anx_reader/providers/book_list.dart';
+import 'package:anx_reader/providers/sync_status.dart';
 import 'package:anx_reader/widgets/bookshelf/book_cover.dart';
 import 'package:anx_reader/widgets/delete_confirm.dart';
 import 'package:anx_reader/widgets/icon_and_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:icons_plus/icons_plus.dart';
 
 class BookBottomSheet extends ConsumerWidget {
@@ -35,6 +39,7 @@ class BookBottomSheet extends ConsumerWidget {
         isDeleted: true,
         description: book.description,
         rating: book.rating,
+        md5: book.md5,
         createTime: book.createTime,
         updateTime: DateTime.now(),
       ));
@@ -53,6 +58,60 @@ class BookBottomSheet extends ConsumerWidget {
       );
     }
 
+    void handleUpload(BuildContext context) {
+      Future<void> core() async {
+        await ref.read(syncProvider.notifier).releaseBook(book);
+        ref.read(syncStatusProvider.notifier).refresh();
+      }
+
+      if (Prefs().notShowReleaseLocalSpaceDialog) {
+        ref.read(syncProvider.notifier).releaseBook(book);
+      } else {
+        SmartDialog.show(
+          builder: (context) => AlertDialog(
+            title: Text(
+                L10n.of(context).bookSyncStatusReleaseSpaceDialogTitle),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(L10n.of(context)
+                    .bookSyncStatusReleaseSpaceDialogContent),
+                Row(
+                  children: [
+                    StatefulBuilder(builder: (context, setState) {
+                      return Checkbox(
+                          value: Prefs().notShowReleaseLocalSpaceDialog,
+                          onChanged: (value) {
+                            Prefs().notShowReleaseLocalSpaceDialog =
+                                value ?? false;
+                            setState(() {});
+                          });
+                    }),
+                    Text(L10n.of(context).bookSyncStatusDoNotShowAgain),
+                  ],
+                )
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  SmartDialog.dismiss();
+                },
+                child: Text(L10n.of(context).commonCancel),
+              ),
+              TextButton(
+                onPressed: () {
+                  SmartDialog.dismiss();
+                  core();
+                },
+                child: Text(L10n.of(context).commonConfirm),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       height: 100,
@@ -69,8 +128,14 @@ class BookBottomSheet extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis),
           ),
           IconAndText(
+              icon: const Icon(EvaIcons.cloud_upload),
+              text: L10n.of(context).bookSyncStatusReleaseSpace,
+              onTap: () {
+                handleUpload(context);
+              }),
+          IconAndText(
             icon: const Icon(EvaIcons.more_vertical),
-            text: L10n.of(context).notes_page_detail,
+            text: L10n.of(context).notesPageDetail,
             onTap: () {
               handleDetail(context);
             },
@@ -81,14 +146,14 @@ class BookBottomSheet extends ConsumerWidget {
             },
             deleteIcon: IconAndText(
               icon: const Icon(EvaIcons.trash),
-              text: L10n.of(context).common_delete,
+              text: L10n.of(context).commonDelete,
             ),
             confirmIcon: IconAndText(
               icon: const Icon(
                 EvaIcons.checkmark_circle_2,
                 color: Colors.red,
               ),
-              text: L10n.of(context).common_confirm,
+              text: L10n.of(context).commonConfirm,
             ),
           )
         ],

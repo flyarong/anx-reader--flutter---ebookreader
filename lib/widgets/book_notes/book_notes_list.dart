@@ -1,17 +1,21 @@
 import 'package:anx_reader/dao/book_note.dart';
 import 'package:anx_reader/enums/sync_direction.dart';
+import 'package:anx_reader/enums/sync_trigger.dart';
 import 'package:anx_reader/l10n/generated/L10n.dart';
 import 'package:anx_reader/models/book.dart';
 import 'package:anx_reader/models/book_note.dart';
 import 'package:anx_reader/page/reading_page.dart';
-import 'package:anx_reader/providers/anx_webdav.dart';
+import 'package:anx_reader/providers/sync.dart';
+import 'package:anx_reader/providers/bookmark.dart';
 import 'package:anx_reader/service/book.dart';
 import 'package:anx_reader/utils/time_to_human.dart';
+import 'package:anx_reader/widgets/book_share/excerpt_share_service.dart';
 import 'package:anx_reader/widgets/delete_confirm.dart';
 import 'package:anx_reader/widgets/context_menu/excerpt_menu.dart';
 import 'package:anx_reader/widgets/tips/notes_tips.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:sticky_headers/sticky_headers.dart';
 
@@ -40,6 +44,7 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
   bool asc = true;
   List<bool> typeColorSelected =
       List.filled(notesType.length * notesColors.length, true);
+  bool showBookMarks = true;
 
   @override
   void initState() {
@@ -63,12 +68,167 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
     });
   }
 
+  void _editBookNote(BuildContext context, BookNote bookNote) {
+    String currentType = bookNote.type;
+    String currentColor = bookNote.color;
+    String? currentNote = bookNote.readerNote;
+    String currentContent = bookNote.content;
+    bool isEditingContent = false;
+
+    TextEditingController noteController =
+        TextEditingController(text: currentNote);
+    TextEditingController contentController =
+        TextEditingController(text: currentContent);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 16),
+                      child: isEditingContent
+                          ? TextField(
+                              controller: contentController,
+                              decoration: InputDecoration(
+                                border: const OutlineInputBorder(),
+                                hintText:
+                                    L10n.of(context).contextMenuAddNoteTips,
+                              ),
+                              maxLines: 3,
+                            )
+                          : GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  isEditingContent = true;
+                                });
+                              },
+                              child: Text(
+                                bookNote.content,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                    ),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: notesType.map((type) {
+                              return IconButton(
+                                icon: Icon(
+                                  type['icon'],
+                                  color: currentType == type['type']
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.grey,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    currentType = type['type'];
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: notesColors.map((color) {
+                              return IconButton(
+                                icon: Icon(
+                                  currentColor == color
+                                      ? EvaIcons.checkmark_circle_2
+                                      : Icons.circle,
+                                  color: Color(int.parse('0x99$color')),
+                                  size: 30,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    currentColor = color;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: TextField(
+                        controller: noteController,
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          hintText: L10n.of(context).contextMenuAddNoteTips,
+                        ),
+                        maxLines: 3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(L10n.of(context).commonCancel),
+                ),
+                TextButton(
+                  onPressed: () {
+                    BookNote updatedNote = BookNote(
+                      id: bookNote.id,
+                      bookId: bookNote.bookId,
+                      content: contentController.text.trim(),
+                      cfi: bookNote.cfi,
+                      chapter: bookNote.chapter,
+                      type: currentType,
+                      color: currentColor,
+                      readerNote: noteController.text.trim(),
+                      createTime: bookNote.createTime,
+                      updateTime: DateTime.now(),
+                    );
+                    updateBookNoteById(updatedNote);
+                    Sync().syncData(SyncDirection.upload, ref,
+                        trigger: SyncTrigger.manual);
+                    _loadBookNotes();
+                    Navigator.pop(context);
+                  },
+                  child: Text(L10n.of(context).commonSave),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget bookNoteItem(BuildContext context, BookNote bookNote, bool selected) {
-    Color iconColor = Color(int.parse('0xaa${bookNote.color}'));
+    Color iconColor =
+        Color(int.tryParse('0xaa${bookNote.color}') ?? 0xaa555555);
     TextStyle infoStyle = const TextStyle(
       fontSize: 14,
       color: Colors.grey,
     );
+    Widget icon() {
+      try {
+        return Icon(
+          notesType.firstWhere(
+              (element) => element['type'] == bookNote.type)['icon'],
+          color: iconColor,
+        );
+      } catch (e) {
+        return const Icon(Icons.bookmark, color: Colors.grey);
+      }
+    }
+
     return GestureDetector(
       onTap: () {
         if (selectedNotes.isNotEmpty) {
@@ -105,11 +265,7 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
             children: [
               Padding(
                   padding: const EdgeInsets.only(left: 10, right: 10, top: 10),
-                  child: Icon(
-                    notesType.firstWhere(
-                        (element) => element['type'] == bookNote.type)['icon'],
-                    color: iconColor,
-                  )),
+                  child: icon()),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,15 +393,24 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
       List<BookNote> filterNotes = [];
 
       for (int i = 0; i < bookNotes.length; i++) {
-        Map<String, dynamic> typeMap = notesType
-            .firstWhere((element) => element['type'] == bookNotes[i].type);
-        String color = bookNotes[i].color.toUpperCase();
-        int index = notesType.indexOf(typeMap) * notesColors.length +
-            notesColors.indexOf(color);
+        try {
+          Map<String, dynamic>? typeMap = notesType
+              .firstWhere((element) => element['type'] == bookNotes[i].type);
+          String color = bookNotes[i].color.toUpperCase();
+          int index = notesType.indexOf(typeMap) * notesColors.length +
+              notesColors.indexOf(color);
 
-        if (typeColorSelected[index]) {
-          filterNotes.add(bookNotes[i]);
+          if (typeColorSelected[index]) {
+            filterNotes.add(bookNotes[i]);
+          }
+        } catch (e) {
+          continue;
         }
+      }
+      if (showBookMarks) {
+        bookNotes.where((note) => note.type == 'bookmark').forEach((note) {
+          filterNotes.add(note);
+        });
       }
 
       if (sortType == 'time') {
@@ -299,6 +464,7 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
               if (sortType == type)
                 Icon(
                   asc ? EvaIcons.arrow_up : EvaIcons.arrow_down,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 )
             ],
           ),
@@ -377,20 +543,44 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
                       sortButton(
                         context,
                         sheetState,
-                        L10n.of(context).notes_page_sort_time,
+                        L10n.of(context).notesPageSortTime,
                         'time',
                       ),
                       sortButton(
                         context,
                         sheetState,
-                        L10n.of(context).notes_page_sort_chapter,
+                        L10n.of(context).notesPageSortChapter,
                         'cfi',
                       ),
                       const Spacer(),
                     ],
                   ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              sheetState(() {
+                                showBookMarks = !showBookMarks;
+                                sortAndFilter();
+                              });
+                            });
+                          },
+                          icon: Icon(
+                            showBookMarks
+                                ? EvaIcons.bookmark
+                                : EvaIcons.bookmark_outline,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          label: Text(L10n.of(context).noteListShowBookmark),
+                        ),
+                      ),
+                    ],
+                  ),
                   for (int i = 0; i < notesType.length; i++)
                     filterButton(context, sheetState, notesType[i]['icon'], i),
+                  const Divider(),
                   Row(
                     children: [
                       ElevatedButton(
@@ -404,7 +594,7 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
                             });
                           },
                           child:
-                              Text(L10n.of(context).notes_page_filter_reset)),
+                              Text(L10n.of(context).notesPageFilterReset)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton(
@@ -415,7 +605,7 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
                                     Theme.of(context).colorScheme.onPrimary),
                             onPressed: Navigator.of(context).pop,
                             child: Text(L10n.of(context)
-                                .notes_page_view_all_n_notes(
+                                .notesPageViewAllNNotes(
                                     showNotes.length))),
                       ),
                     ],
@@ -465,11 +655,15 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
           for (int i = 0; i < selectedNotes.length; i++) {
             deleteBookNoteById(selectedNotes[i].id!);
           }
-          AnxWebdav().syncData(SyncDirection.upload, ref);
+          Sync().syncData(SyncDirection.upload, ref, 
+              trigger: SyncTrigger.auto);
           setState(() {
             selectedNotes.clear();
             _loadBookNotes();
           });
+          ref
+              .read(BookmarkProvider(widget.book.id).notifier)
+              .refreshBookmarks();
         },
         deleteIcon: Icon(
           EvaIcons.trash_2,
@@ -497,6 +691,43 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
     );
   }
 
+  Widget slidbleNotes(Widget child, BookNote bookNote) {
+    BuildContext context = this.context;
+    ActionPane actionPane = ActionPane(
+      motion: const StretchMotion(),
+      children: [
+        SlidableAction(
+          onPressed: (context) {
+            ExcerptShareService.showShareExcerpt(
+              context: context,
+              bookTitle: widget.book.title,
+              author: widget.book.author,
+              excerpt: bookNote.content,
+              chapter: bookNote.chapter,
+            );
+          },
+          icon: Icons.share,
+          label: L10n.of(context).readingPageShareShare,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        ),
+        SlidableAction(
+          onPressed: (context) {
+            _editBookNote(context, bookNote);
+          },
+          icon: Icons.edit,
+          label: L10n.of(context).commonEdit,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        ),
+      ],
+    );
+    return Slidable(
+      key: ValueKey(bookNote.id),
+      startActionPane: actionPane,
+      endActionPane: actionPane,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -512,7 +743,10 @@ class _BookNotesListState extends ConsumerState<BookNotesList> {
                 )
               : Column(
                   children: showNotes.map((bookNote) {
-                    return bookNoteItem(context, bookNote, false);
+                    return slidbleNotes(
+                      bookNoteItem(context, bookNote, false),
+                      bookNote,
+                    );
                   }).toList(),
                 ),
         ),

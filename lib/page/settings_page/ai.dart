@@ -5,6 +5,7 @@ import 'package:anx_reader/page/settings_page/subpage/ai_chat_page.dart';
 import 'package:anx_reader/providers/ai_cache_count.dart';
 import 'package:anx_reader/service/ai/ai_dio.dart';
 import 'package:anx_reader/service/ai/prompt_generate.dart';
+import 'package:anx_reader/utils/env_var.dart';
 import 'package:anx_reader/widgets/ai_stream.dart';
 import 'package:anx_reader/widgets/settings/settings_section.dart';
 import 'package:anx_reader/widgets/settings/settings_tile.dart';
@@ -25,49 +26,96 @@ class _AISettingsState extends ConsumerState<AISettings> {
   bool showSettings = false;
   int currentIndex = 0;
   late List<Map<String, dynamic>> initialServicesConfig;
-  List<Map<String, dynamic>> services = [
-    {
-      "identifier": "openai",
-      "title": "OpenAI",
-      "logo": "assets/images/openai.png",
-      "config": {
-        "url": "https://api.openai.com/v1/chat/completions",
-        "api_key": "YOUR_API_KEY",
-        "model": "gpt-4o-mini",
-      },
-    },
-    {
-      "identifier": "claude",
-      "title": "Claude",
-      "logo": "assets/images/claude.png",
-      "config": {
-        "url": "https://api.anthropic.com/v1/messages",
-        "api_key": "YOUR_API_KEY",
-        "model": "claude-3-5-sonnet-20240620",
-      },
-    },
-    {
-      "identifier": "gemini",
-      "title": "Gemini",
-      "logo": "assets/images/gemini.png",
-      "config": {
-        "url":
-            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        "api_key": "YOUR_API_KEY",
-        "model": "gemini-2.0-flash"
-      },
-    },
-    {
-      "identifier": "deepseek",
-      "title": "DeepSeek",
-      "logo": "assets/images/deepseek.png",
-      "config": {
-        "url": "https://api.deepseek.com/v1/chat/completions",
-        "api_key": "YOUR_API_KEY",
-        "model": "deepseek-chat",
-      },
-    },
-  ];
+  bool _obscureApiKey = true;
+  
+  List<Map<String, dynamic>> services = EnvVar.isBeian
+      ? [
+          {
+            "identifier": "openai",
+            "title": "通用",
+            "logo": "assets/images/commonAi.png",
+            "config": {
+              "url":
+                  "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+              "api_key": "YOUR_API_KEY",
+              "model": "qwen-long",
+            },
+          },
+          {
+            "identifier": "claude",
+            "title": "Claude",
+            "logo": "assets/images/claude.png",
+            "config": {
+              "url": "https://api.anthropic.com/v1/messages",
+              "api_key": "YOUR_API_KEY",
+              "model": "claude-3-5-sonnet-20240620",
+            },
+          },
+          {
+            "identifier": "gemini",
+            "title": "Gemini",
+            "logo": "assets/images/gemini.png",
+            "config": {
+              "url":
+                  "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+              "api_key": "YOUR_API_KEY",
+              "model": "gemini-2.0-flash"
+            },
+          },
+          {
+            "identifier": "deepseek",
+            "title": "DeepSeek",
+            "logo": "assets/images/deepseek.png",
+            "config": {
+              "url": "https://api.deepseek.com/v1/chat/completions",
+              "api_key": "YOUR_API_KEY",
+              "model": "deepseek-chat",
+            },
+          },
+        ]
+      : [
+          {
+            "identifier": "openai",
+            "title": "OpenAI",
+            "logo": "assets/images/openai.png",
+            "config": {
+              "url": "https://api.openai.com/v1/chat/completions",
+              "api_key": "YOUR_API_KEY",
+              "model": "gpt-4o-mini",
+            },
+          },
+          {
+            "identifier": "claude",
+            "title": "Claude",
+            "logo": "assets/images/claude.png",
+            "config": {
+              "url": "https://api.anthropic.com/v1/messages",
+              "api_key": "YOUR_API_KEY",
+              "model": "claude-3-5-sonnet-20240620",
+            },
+          },
+          {
+            "identifier": "gemini",
+            "title": "Gemini",
+            "logo": "assets/images/gemini.png",
+            "config": {
+              "url":
+                  "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+              "api_key": "YOUR_API_KEY",
+              "model": "gemini-2.0-flash"
+            },
+          },
+          {
+            "identifier": "deepseek",
+            "title": "DeepSeek",
+            "logo": "assets/images/deepseek.png",
+            "config": {
+              "url": "https://api.deepseek.com/v1/chat/completions",
+              "api_key": "YOUR_API_KEY",
+              "model": "deepseek-chat",
+            },
+          },
+        ];
 
   @override
   void initState() {
@@ -92,24 +140,29 @@ class _AISettingsState extends ConsumerState<AISettings> {
     List<Map<String, dynamic>> prompts = [
       {
         "identifier": AiPrompts.test,
-        "title": L10n.of(context).settings_ai_prompt_test,
+        "title": L10n.of(context).settingsAiPromptTest,
         "variables": ["language_locale"],
       },
       {
         "identifier": AiPrompts.summaryTheChapter,
-        "title": L10n.of(context).settings_ai_prompt_summary_the_chapter,
+        "title": L10n.of(context).settingsAiPromptSummaryTheChapter,
         "variables": ["chapter"],
       },
       {
         "identifier": AiPrompts.summaryTheBook,
-        "title": L10n.of(context).settings_ai_prompt_summary_the_book,
+        "title": L10n.of(context).settingsAiPromptSummaryTheBook,
         "variables": ["book", "author"],
       },
       {
         "identifier": AiPrompts.summaryThePreviousContent,
         "title":
-            L10n.of(context).settings_ai_prompt_summary_the_previous_content,
+            L10n.of(context).settingsAiPromptSummaryThePreviousContent,
         "variables": ["previous_content"],
+      },
+      {
+        "identifier": AiPrompts.translate,
+        "title": L10n.of(context).settingsAiPromptTranslateAndDictionary,
+        "variables": ["text", "to_locale", "from_locale"],
       }
     ];
 
@@ -128,6 +181,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: TextField(
+                obscureText: key == "api_key" && _obscureApiKey,
                 controller: TextEditingController(
                     text: services[currentIndex]["config"][key] ??
                         initialServicesConfig[currentIndex]["config"][key]),
@@ -135,6 +189,18 @@ class _AISettingsState extends ConsumerState<AISettings> {
                   border: const OutlineInputBorder(),
                   labelText: key,
                   hintText: services[currentIndex]["config"][key],
+                  suffixIcon: key == "api_key"
+                      ? IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _obscureApiKey = !_obscureApiKey;
+                            });
+                          },
+                          icon: _obscureApiKey
+                              ? const Icon(Icons.visibility_off)
+                              : const Icon(Icons.visibility),
+                        )
+                      : null,
                 ),
                 onChanged: (value) {
                   services[currentIndex]["config"][key] = value;
@@ -153,7 +219,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
                         initialServicesConfig[currentIndex]["config"]);
                     setState(() {});
                   },
-                  child: Text(L10n.of(context).common_reset)),
+                  child: Text(L10n.of(context).commonReset)),
               TextButton(
                   onPressed: () {
                     SmartDialog.show(
@@ -161,14 +227,15 @@ class _AISettingsState extends ConsumerState<AISettings> {
                         AiDio.instance.cancel();
                       },
                       builder: (context) => AlertDialog(
-                          title: Text(L10n.of(context).common_test),
+                          title: Text(L10n.of(context).commonTest),
                           content: AiStream(
                               prompt: generatePromptTest(),
                               identifier: services[currentIndex]["identifier"],
-                              config: services[currentIndex]["config"])),
+                              config: services[currentIndex]["config"],
+                              regenerate: true)),
                     );
                   },
-                  child: Text(L10n.of(context).common_test)),
+                  child: Text(L10n.of(context).commonTest)),
               TextButton(
                   onPressed: () {
                     Prefs().saveAiConfig(
@@ -180,7 +247,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
                       showSettings = false;
                     });
                   },
-                  child: Text(L10n.of(context).common_save)),
+                  child: Text(L10n.of(context).commonSave)),
               TextButton(
                   onPressed: () {
                     Prefs().selectedAiService =
@@ -194,7 +261,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
                       showSettings = false;
                     });
                   },
-                  child: Text(L10n.of(context).common_apply)),
+                  child: Text(L10n.of(context).commonApply)),
             ],
           )
         ],
@@ -299,7 +366,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
                 );
 
                 return AlertDialog(
-                  title: Text(L10n.of(context).common_edit),
+                  title: Text(L10n.of(context).commonEdit),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -310,7 +377,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                      Row(
+                      Wrap(
                         children: [
                           for (var variable in prompts[index]["variables"])
                             TextButton(
@@ -349,7 +416,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
                           AiPrompts.values[index],
                         );
                       },
-                      child: Text(L10n.of(context).common_reset),
+                      child: Text(L10n.of(context).commonReset),
                     ),
                     TextButton(
                       onPressed: () {
@@ -358,7 +425,7 @@ class _AISettingsState extends ConsumerState<AISettings> {
                           controller.text,
                         );
                       },
-                      child: Text(L10n.of(context).common_save),
+                      child: Text(L10n.of(context).commonSave),
                     ),
                   ],
                 );
@@ -371,12 +438,12 @@ class _AISettingsState extends ConsumerState<AISettings> {
 
     return settingsSections(sections: [
       SettingsSection(
-        title: Text(L10n.of(context).settings_ai_services),
+        title: Text(L10n.of(context).settingsAiServices),
         tiles: [
           servicesTile,
           SettingsTile.navigation(
             leading: const Icon(Icons.chat),
-            title: Text(L10n.of(context).ai_chat),
+            title: Text(L10n.of(context).aiChat),
             onPressed: (context) {
               Navigator.push(
                 context,
@@ -389,22 +456,22 @@ class _AISettingsState extends ConsumerState<AISettings> {
         ],
       ),
       SettingsSection(
-        title: Text(L10n.of(context).settings_ai_prompt),
+        title: Text(L10n.of(context).settingsAiPrompt),
         tiles: [
           promptTile,
         ],
       ),
       SettingsSection(
-        title: Text(L10n.of(context).settings_ai_cache),
+        title: Text(L10n.of(context).settingsAiCache),
         tiles: [
           CustomSettingsTile(
             child: ListTile(
               title: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(L10n.of(context).settings_ai_cache_size),
+                  Text(L10n.of(context).settingsAiCacheSize),
                   Text(
-                    L10n.of(context).settings_ai_cache_current_size(ref
+                    L10n.of(context).settingsAiCacheCurrentSize(ref
                         .watch(aiCacheCountProvider)
                         .when(
                             data: (value) => value,
@@ -434,24 +501,24 @@ class _AISettingsState extends ConsumerState<AISettings> {
             ),
           ),
           SettingsTile.navigation(
-              title: Text(L10n.of(context).settings_ai_cache_clear),
+              title: Text(L10n.of(context).settingsAiCacheClear),
               onPressed: (context) {
                 SmartDialog.show(
                   builder: (context) => AlertDialog(
-                    title: Text(L10n.of(context).common_confirm),
+                    title: Text(L10n.of(context).commonConfirm),
                     actions: [
                       TextButton(
                         onPressed: () {
                           SmartDialog.dismiss();
                         },
-                        child: Text(L10n.of(context).common_cancel),
+                        child: Text(L10n.of(context).commonCancel),
                       ),
                       TextButton(
                         onPressed: () {
                           ref.read(aiCacheCountProvider.notifier).clearCache();
                           SmartDialog.dismiss();
                         },
-                        child: Text(L10n.of(context).common_confirm),
+                        child: Text(L10n.of(context).commonConfirm),
                       ),
                     ],
                   ),

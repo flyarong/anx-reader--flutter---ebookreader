@@ -19,7 +19,7 @@ void showContextMenu(
   double screenWidth = MediaQuery.of(context).size.width;
   double screenHeight = MediaQuery.of(context).size.height;
 
-  double menuWidth = 350 > screenWidth ? screenWidth - 20 : 350;
+  double menuWidth = 370 > screenWidth ? screenWidth - 20 : 350;
   x *= screenWidth;
   y *= screenHeight;
 
@@ -34,24 +34,37 @@ void showContextMenu(
   }
 
   BoxDecoration decoration = BoxDecoration(
-    color: Theme.of(context).colorScheme.secondaryContainer,
+    color: Prefs().eInkMode? Colors.white : Theme.of(context).colorScheme.secondaryContainer,
     borderRadius: BorderRadius.circular(10),
     boxShadow: [
+      if (!Prefs().eInkMode)
       BoxShadow(
         color: Colors.black.withOpacity(0.1),
         spreadRadius: 5,
         blurRadius: 7,
-        offset: const Offset(0, 3),
-      ),
+          offset: const Offset(0, 3),
+        ),
+      if (Prefs().eInkMode)
+        BoxShadow(
+          color: Colors.black,
+          spreadRadius: 1,
+          blurRadius: 0,
+        ),
     ],
   );
 
   bool showTranslationMenu = Prefs().autoTranslateSelection;
+
+  double bottomPosition =
+      y > 350 ? (screenHeight - y + 20) : screenHeight - 370;
+
+  double topPosition = screenHeight - y > 350 ? y + 20 : screenHeight - 350;
+
   playerKey.contextMenuEntry = OverlayEntry(builder: (context) {
     return Positioned(
       left: widgetLeft,
-      bottom: dir == "up" ? screenHeight - y + 20 : null,
-      top: dir != "up" ? y + 20 : null,
+      bottom: dir == "up" ? bottomPosition : null,
+      top: dir != "up" ? topPosition : null,
       child: Container(
         width: menuWidth,
         // height: menuHeight,
@@ -67,19 +80,31 @@ void showContextMenu(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    ExcerptMenu(
-                      annoCfi: annoCfi,
-                      annoContent: annoContent,
-                      id: annoId,
-                      onClose: onClose,
-                      footnote: footnote,
-                      decoration: decoration,
-                      toggleTranslationMenu: toggleTranslationMenu,
-                    ),
-                  ],
-                ),
+                LayoutBuilder(builder: (context, constraints) {
+                  double bottom =
+                      bottomPosition > MediaQuery.of(context).viewInsets.bottom
+                          ? 0
+                          : MediaQuery.of(context).viewInsets.bottom -
+                              bottomPosition;
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          ExcerptMenu(
+                            annoCfi: annoCfi,
+                            annoContent: annoContent,
+                            id: annoId,
+                            onClose: onClose,
+                            footnote: footnote,
+                            decoration: decoration,
+                            toggleTranslationMenu: toggleTranslationMenu,
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: bottom),
+                    ],
+                  );
+                }),
                 const SizedBox(height: 10),
                 if (showTranslationMenu)
                   Row(
